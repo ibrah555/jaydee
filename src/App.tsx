@@ -3,11 +3,24 @@ import { Route, Routes, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Products from './pages/Products';
 import History from './pages/History';
-import More from './pages/More';
 import Sale from './pages/Sale';
+import Dashboard from './pages/Dashboard';
 import { useAuthStore } from './stores/auth';
 import SyncBanner from './components/SyncBanner';
+import Sidebar from './components/Sidebar';
 import { useTransactionStore } from './stores/transaction';
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles: string[];
+}
+
+function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { user } = useAuthStore();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
 export default function App() {
   const { user, signOut } = useAuthStore();
@@ -94,14 +107,40 @@ export default function App() {
 
 function AppRoutes() {
   return (
-    <>
-      <SyncBanner />
-      <Routes>
-        <Route path="/" element={<Sale />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/more" element={<More />} />
-      </Routes>
-    </>
+    <div className="flex min-h-screen flex-col md:flex-row pb-16 md:pb-0">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0">
+        <SyncBanner />
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Sale />} />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute allowedRoles={['owner']}>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/products" 
+              element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'inventory']}>
+                  <Products />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/history" 
+              element={
+                <ProtectedRoute allowedRoles={['owner', 'manager']}>
+                  <History />
+                </ProtectedRoute>
+              } 
+            />
+          </Routes>
+        </main>
+      </div>
+    </div>
   );
 }

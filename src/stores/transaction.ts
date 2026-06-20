@@ -8,6 +8,7 @@ const TRANSACTIONS_PER_PAGE = 50;
 
 type TransactionState = {
   transactions: Transaction[];
+  currentTransaction: Transaction | null;
   pendingCount: number;
   hasMore: boolean;
   page: number;
@@ -23,6 +24,7 @@ type TransactionState = {
     paymentDetails: Record<string, unknown>,
     cashierId: string,
     cashierName: string,
+    shiftId: number | undefined,
     customerPhone?: string
   ) => Promise<number>;
 };
@@ -36,6 +38,7 @@ const generateTransactionId = () => {
 
 export const useTransactionStore = create<TransactionState>((set) => ({
   transactions: [],
+  currentTransaction: null,
   pendingCount: 0,
   hasMore: true,
   page: 0,
@@ -147,6 +150,7 @@ export const useTransactionStore = create<TransactionState>((set) => ({
     paymentDetails,
     cashierId,
     cashierName,
+    shiftId,
     customerPhone
   ) => {
     const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -173,6 +177,7 @@ export const useTransactionStore = create<TransactionState>((set) => ({
       pushAttempts: 0,
       lastAttemptAt: 0,
       syncFailureReason: '',
+      shiftId,
       createdAt: Date.now()
     };
 
@@ -182,12 +187,15 @@ export const useTransactionStore = create<TransactionState>((set) => ({
       const pushed = await pushTransactionToFirestore(transaction).catch(() => false);
       if (pushed) {
         await db.transactions.update(id, { syncStatus: 'synced' });
+        transaction.syncStatus = 'synced';
       }
     }
 
+    const savedTxWithId = { ...transaction, id };
     const transactions = await db.transactions.orderBy('createdAt').reverse().toArray();
     set({
       transactions,
+      currentTransaction: savedTxWithId,
       pendingCount: transactions.filter((transaction) => transaction.syncStatus === 'pending').length
     });
     return id;

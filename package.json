@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -13,8 +16,8 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.0",
     "dexie": "^3.2.2",
+    "dexie-react-hooks": "^4.4.0",
     "firebase": "^10.7.0",
-    "firebase-admin": "^11.11.0",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.467.0",
     "react": "^18.2.0",
@@ -24,20 +27,20 @@
     "zustand": "^4.4.4"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.4.2",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.5.0",
     "autoprefixer": "^10.4.19",
+    "firebase-tools": "^11.30.0",
+    "mocha": "^10.2.0",
     "postcss": "^8.4.40",
     "tailwindcss": "^3.4.5",
-    "typescript": "^5.6.2",
-    "vite": "^5.4.1",
-    "vite-plugin-pwa": "^1.2.1",
-    "firebase-tools": "^11.30.0",
-    "@firebase/rules-unit-testing": "^3.0.0",
-    "mocha": "^10.2.0",
     "ts-node": "^10.9.1",
-    "@types/mocha": "^10.0.1",
-    "@types/node": "^20.4.2"
+    "typescript": "^5.6.2",
+    "vite": "^5.4.1"
   }
 }
+

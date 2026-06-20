@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Clock3, ArrowUpRight, Archive } from 'lucide-react';
 import { useTransactionStore } from '../stores/transaction';
 import ReceiptModal from '../components/ReceiptModal';
-import NavBar from '../components/NavBar';
 
 export default function History() {
   const { transactions, loadTransactions, retryTransaction } = useTransactionStore();
@@ -86,8 +85,6 @@ export default function History() {
       </div>
 
       {selected && <ReceiptModal transaction={selected} onClose={() => setSelected(null)} />}
-
-      <NavBar />
     </div>
   );
 }

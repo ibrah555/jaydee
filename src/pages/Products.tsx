@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Plus, Search, Filter, ChevronRight } from 'lucide-react';
 import { useProductStore } from '../stores/product';
 import ProductForm from '../components/ProductForm';
-import NavBar from '../components/NavBar';
 
 const categories = ['All', 'Skincare', 'Makeup', 'Fragrance', 'Hair', 'Tools', 'Accessories'];
 
@@ -113,8 +112,6 @@ export default function Products() {
       </div>
 
       {isOpen && <ProductForm onClose={() => setIsOpen(false)} onSaved={() => { setIsOpen(false); loadProducts(); }} />}
-
-      <NavBar />
     </div>
   );
 }

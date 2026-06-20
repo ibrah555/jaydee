@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Product } from '../db/schema';
+import { Product, ProductVariant } from '../db/schema';
 
 type CartItem = {
   productId: number;
@@ -9,6 +9,8 @@ type CartItem = {
   unitPrice: number;
   totalPrice: number;
   sku: string;
+  variantId?: string;
+  variantName?: string;
 };
 
 type CartState = {
@@ -19,9 +21,9 @@ type CartState = {
   subtotal: number;
   taxTotal: number;
   total: number;
-  addItem: (product: Product, quantity?: number) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  addItem: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  removeItem: (productId: number, variantId?: string) => void;
+  updateQuantity: (productId: number, variantId: string | undefined, quantity: number) => void;
   clearCart: () => void;
   applyDiscountPercent: (percent: number) => void;
 };
@@ -64,12 +66,22 @@ export const useCartStore = create<CartState>((set, get) => ({
   subtotal: initialTotals.subtotal,
   taxTotal: initialTotals.taxTotal,
   total: initialTotals.total,
-  addItem: (product, quantity = 1) => {
+  
+  addItem: (product, quantity = 1, variant) => {
     set((state) => {
-      const existing = state.items.find((item) => item.productId === product.id);
+      const match = (item: CartItem) => 
+        item.productId === product.id && item.variantId === variant?.id;
+
+      const existing = state.items.find(match);
+      
+      const price = variant ? variant.sellingPrice : product.sellingPrice;
+      const name = variant ? `${product.name} (${variant.name})` : product.name;
+      const shade = variant?.shadeHex || product.shadeHex;
+      const sku = variant?.barcode || product.sku;
+
       const nextItems = existing
         ? state.items.map((item) => {
-            if (item.productId === product.id) {
+            if (match(item)) {
               const qty = item.quantity + quantity;
               return {
                 ...item,
@@ -83,12 +95,14 @@ export const useCartStore = create<CartState>((set, get) => ({
             ...state.items,
             {
               productId: product.id!,
-              name: product.name,
-              shadeHex: product.shadeHex,
+              name,
+              shadeHex: shade,
               quantity,
-              unitPrice: product.sellingPrice,
-              totalPrice: Math.round(quantity * product.sellingPrice * 100) / 100,
-              sku: product.sku
+              unitPrice: price,
+              totalPrice: Math.round(quantity * price * 100) / 100,
+              sku,
+              variantId: variant?.id,
+              variantName: variant?.name
             }
           ];
 
@@ -97,19 +111,23 @@ export const useCartStore = create<CartState>((set, get) => ({
       return { ...state, items: nextItems, ...totals };
     });
   },
-  removeItem: (productId) => {
+
+  removeItem: (productId, variantId) => {
     set((state) => {
-      const nextItems = state.items.filter((item) => item.productId !== productId);
+      const nextItems = state.items.filter(
+        (item) => !(item.productId === productId && item.variantId === variantId)
+      );
       const totals = calculateTotals(nextItems, state.taxRate, state.discountPercent);
       saveCart(nextItems, state.discountPercent);
       return { ...state, items: nextItems, ...totals };
     });
   },
-  updateQuantity: (productId, quantity) => {
+
+  updateQuantity: (productId, variantId, quantity) => {
     if (quantity < 1) return;
     set((state) => {
       const nextItems = state.items.map((item) => {
-        if (item.productId === productId) {
+        if (item.productId === productId && item.variantId === variantId) {
           return {
             ...item,
             quantity,
@@ -123,10 +141,12 @@ export const useCartStore = create<CartState>((set, get) => ({
       return { ...state, items: nextItems, ...totals };
     });
   },
+
   clearCart: () => {
     saveCart([], 0);
     set({ items: [], discountPercent: 0, discountAmount: 0, subtotal: 0, taxTotal: 0, total: 0 });
   },
+
   applyDiscountPercent: (percent) => {
     set((state) => {
       const totals = calculateTotals(state.items, state.taxRate, percent);
