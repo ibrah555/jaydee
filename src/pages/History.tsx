@@ -5,12 +5,12 @@ import { useTransactionStore } from '../stores/transaction';
 import ReceiptModal from '../components/ReceiptModal';
 
 export default function History() {
-  const { transactions, loadTransactions, retryTransaction } = useTransactionStore();
+  const { transactions, loadTransactions } = useTransactionStore();
   const [selected, setSelected] = useState<any | null>(null);
 
   useEffect(() => {
     loadTransactions();
-  }, []);
+  }, [loadTransactions]);
 
   const pendingCount = useMemo(
     () => transactions.filter((transaction) => transaction.syncStatus === 'pending').length,
@@ -64,7 +64,10 @@ export default function History() {
                       <button
                         className="rounded-2xl border border-rose-200 px-3 py-2 text-rose-700 text-sm"
                         onClick={async () => {
-                          await retryTransaction(transaction.id!);
+                          // import store inside handler to avoid top-level circular imports
+                          const module = await import('../stores/transaction');
+                          const retryTransaction = module.useTransactionStore.getState().retryTransaction;
+                          if (retryTransaction) await retryTransaction(transaction.id!);
                         }}
                       >
                         Retry sync
@@ -85,6 +88,27 @@ export default function History() {
       </div>
 
       {selected && <ReceiptModal transaction={selected} onClose={() => setSelected(null)} />}
+
+      <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+        <div className="mx-auto flex max-w-xl items-center justify-between px-4">
+          <Link to="/sale" className="flex flex-col items-center gap-1 text-slate-500">
+            <Clock3 className="h-6 w-6" />
+            <span className="text-xs">New Sale</span>
+          </Link>
+          <Link to="/products" className="flex flex-col items-center gap-1 text-slate-500">
+            <Archive className="h-6 w-6" />
+            <span className="text-xs">Products</span>
+          </Link>
+          <Link to="/history" className="flex flex-col items-center gap-1 text-accent">
+            <span className="h-6 w-6 rounded-full bg-primary" />
+            <span className="text-xs">History</span>
+          </Link>
+          <Link to="/more" className="flex flex-col items-center gap-1 text-slate-500">
+            <span className="h-6 w-6 rounded-full bg-slate-200" />
+            <span className="text-xs">More</span>
+          </Link>
+        </div>
+      </nav>
     </div>
   );
 }

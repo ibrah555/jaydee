@@ -1,30 +1,21 @@
 import { useEffect } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Products from './pages/Products';
 import History from './pages/History';
+import More from './pages/More';
+import AdminUsers from './pages/AdminUsers';
 import Sale from './pages/Sale';
-import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
+import Sidebar from './components/Sidebar';
 import { useAuthStore } from './stores/auth';
 import SyncBanner from './components/SyncBanner';
-import Sidebar from './components/Sidebar';
 import { useTransactionStore } from './stores/transaction';
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  allowedRoles: string[];
-}
-
-function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user } = useAuthStore();
-  if (!user) return <Navigate to="/login" replace />;
-  if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
 
 export default function App() {
   const { user, signOut } = useAuthStore();
-  const { pendingCount, syncPendingTransactions } = useTransactionStore();
+  const { pendingCount, syncPendingTransactions, loadTransactions } = useTransactionStore();
 
   useEffect(() => {
     if (!user) return;
@@ -91,7 +82,7 @@ export default function App() {
     if (pendingCount <= 0) return;
 
     navigator.serviceWorker.ready
-      .then((reg: any) => reg.sync.register('jaydee-sync').catch(() => undefined))
+      .then((reg: any) => reg.sync?.register('jaydee-sync').catch(() => undefined))
       .catch(() => undefined);
   }, [pendingCount]);
 
@@ -107,40 +98,33 @@ export default function App() {
 
 function AppRoutes() {
   return (
-    <div className="flex min-h-screen flex-col md:flex-row pb-16 md:pb-0">
+    <div className="min-h-screen flex bg-secondary text-body">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1">
         <SyncBanner />
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Sale />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute allowedRoles={['owner']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/products" 
-              element={
-                <ProtectedRoute allowedRoles={['owner', 'manager', 'inventory']}>
-                  <Products />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/history" 
-              element={
-                <ProtectedRoute allowedRoles={['owner', 'manager']}>
-                  <History />
-                </ProtectedRoute>
-              } 
-            />
-          </Routes>
-        </main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/sale" element={<RoleRoute allowedRoles={['cashier']} element={<Sale />} />} />
+          <Route path="/dashboard" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<Dashboard />} />} />
+          <Route path="/products" element={<RoleRoute allowedRoles={['owner','manager','inventory','superadmin']} element={<Products />} />} />
+          <Route path="/history" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<History />} />} />
+          <Route path="/more" element={<RoleRoute allowedRoles={['owner','manager','inventory','superadmin']} element={<More />} />} />
+          <Route path="/admin/users" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<AdminUsers />} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </div>
   );
+}
+
+function RoleRoute({ allowedRoles, element }: { allowedRoles: string[]; element: JSX.Element }) {
+  const { user } = useAuthStore();
+
+  console.log('RoleRoute: user =', user?.username, 'role =', user?.role, 'allowedRoles =', allowedRoles);
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return allowedRoles.includes(user.role) ? element : <Navigate to="/" replace />;
 }

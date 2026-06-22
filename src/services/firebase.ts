@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 let firestore: ReturnType<typeof getFirestore> | null = null;
 let auth: ReturnType<typeof getAuth> | null = null;
-let currentUser: any = null;
+let currentUser: any | null = null;
 
 function initFirebase() {
   try {
@@ -35,13 +35,13 @@ function initFirebase() {
 
       // attempt anonymous auth so writes have an auth context
       signInAnonymously(auth).catch(() => undefined);
-      onAuthStateChanged(auth, (u: any) => {
+      onAuthStateChanged(auth, (u: any | null) => {
         currentUser = u;
       });
     } else {
       firestore = getFirestore();
       auth = getAuth();
-      onAuthStateChanged(auth, (u: any) => {
+      onAuthStateChanged(auth, (u: any | null) => {
         currentUser = u;
       });
     }

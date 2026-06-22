@@ -27,6 +27,8 @@ export default function Dashboard() {
   // 2. Fetch transactions from Dexie
   const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
 
+  console.log('Dashboard: products =', products.length, 'transactions =', transactions.length);
+
   // Determine low-stock items (supporting variants)
   const lowStockItems: { name: string; variantName?: string; stock: number; limit: number }[] = [];
   const expiringItems: { name: string; variantName?: string; expiryDate: string; daysLeft: number }[] = [];

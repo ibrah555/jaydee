@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { 
+  Home as HomeIcon,
   ShoppingBag, 
   Package, 
   History, 
@@ -8,7 +9,8 @@ import {
   BarChart3, 
   ChevronLeft, 
   ChevronRight,
-  UserCheck
+  UserCheck,
+  Users
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -27,28 +29,40 @@ export default function Sidebar() {
   // Define navigation tabs with roles
   const menuItems = [
     {
-      name: 'Sale',
+      name: 'Home',
       path: '/',
-      icon: ShoppingBag,
-      allowedRoles: ['owner', 'manager', 'cashier']
+      icon: HomeIcon,
+      allowedRoles: ['owner', 'manager', 'inventory', 'superadmin', 'cashier']
     },
     {
       name: 'Dashboard',
       path: '/dashboard',
       icon: BarChart3,
-      allowedRoles: ['owner']
+      allowedRoles: ['owner', 'manager', 'superadmin']
     },
     {
       name: 'Products',
       path: '/products',
       icon: Package,
-      allowedRoles: ['owner', 'manager', 'inventory']
+      allowedRoles: ['owner', 'manager', 'inventory', 'superadmin']
     },
     {
-      name: 'History',
+      name: 'Orders',
       path: '/history',
       icon: History,
-      allowedRoles: ['owner', 'manager']
+      allowedRoles: ['owner', 'manager', 'superadmin']
+    },
+    {
+      name: 'Users',
+      path: '/admin/users',
+      icon: Users,
+      allowedRoles: ['owner', 'manager', 'superadmin']
+    },
+    {
+      name: 'More',
+      path: '/more',
+      icon: UserCheck,
+      allowedRoles: ['owner', 'manager', 'inventory', 'superadmin']
     }
   ];
 

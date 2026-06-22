@@ -1,26 +1,27 @@
 import Dexie, { Table } from 'dexie';
 
 export interface ProductVariant {
-  id: string;
-  name: string; // e.g. "Matte Lipstick - Ruby Red"
+  id?: string;
   barcode: string;
-  stockQuantity: number;
+  name: string;
+  shadeHex: string;
   costPrice: number;
   sellingPrice: number;
+  stockQuantity: number;
   expiryDate?: string;
-  shadeHex?: string;
 }
 
 export interface Product {
   id?: number;
   sku: string;
-  barcode: string; // Parent barcode
+  barcode: string;
   name: string;
   brand: string;
   category: string;
   subcategory: string;
-  variant: string; // If single variant, legacy text
-  shadeHex: string; // If single variant, legacy shade
+  variant: string;
+  variants?: ProductVariant[];
+  shadeHex: string;
   skinTypes: string[];
   concerns: string[];
   tags: string[];
@@ -36,7 +37,6 @@ export interface Product {
   imageUrl: string;
   notes: string;
   lowStockThreshold: number;
-  variants?: ProductVariant[]; // Variant support
   createdAt: number;
   updatedAt: number;
 }
@@ -49,7 +49,7 @@ export interface TransactionItem {
   unitPrice: number;
   totalPrice: number;
   batchNumber: string;
-  variantId?: string; // Track which variant was purchased
+  variantId?: string;
 }
 
 export interface Transaction {
@@ -71,8 +71,8 @@ export interface Transaction {
   pushAttempts?: number;
   lastAttemptAt?: number;
   syncFailureReason?: string;
+  shiftId?: number;
   createdAt: number;
-  shiftId?: number; // link to active shift
 }
 
 export interface Customer {
@@ -94,12 +94,28 @@ export interface Customer {
 
 export interface User {
   id?: number;
+  username: string;
+  email: string;
   name: string;
   phone?: string;
-  role: 'owner' | 'manager' | 'cashier' | 'inventory';
-  pinHash: string;
+  role: 'owner' | 'manager' | 'cashier' | 'inventory' | 'superadmin';
+  passwordHash?: string;
   isActive: boolean;
-  lastLogin: number;
+  lastLogin?: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface Shift {
+  id?: number;
+  cashierId: string;
+  cashierName: string;
+  startTime: number;
+  endTime?: number;
+  openingBalance: number;
+  expectedEndingBalance: number;
+  actualEndingBalance?: number;
+  status: 'open' | 'closed';
   createdAt: number;
 }
 
@@ -116,43 +132,23 @@ export interface InventoryLog {
   createdAt: number;
 }
 
-export interface Shift {
-  id?: number;
-  cashierId: string;
-  cashierName: string;
-  startTime: number;
-  endTime?: number;
-  openingBalance: number;
-  expectedEndingBalance: number;
-  actualEndingBalance?: number;
-  status: 'open' | 'closed';
-  createdAt: number;
-}
-
 export class JayDeeDB extends Dexie {
   products!: Table<Product, number>;
   transactions!: Table<Transaction, number>;
   customers!: Table<Customer, number>;
   users!: Table<User, number>;
-  inventoryLog!: Table<InventoryLog, number>;
   shifts!: Table<Shift, number>;
+  inventoryLog!: Table<InventoryLog, number>;
 
   constructor() {
     super('JayDeePOS');
     this.version(1).stores({
       products: '++id,sku,barcode,name,brand,category,subcategory,createdAt',
-      transactions: '++id,transactionId,cashierId,cashierName,createdAt,syncStatus',
+      transactions: '++id,transactionId,cashierId,cashierName,shiftId,createdAt,syncStatus',
       customers: '++id,phone,name,createdAt',
       users: '++id,role,isActive,lastLogin,createdAt',
+      shifts: '++id,cashierId,status,createdAt',
       inventoryLog: '++id,productId,type,createdAt'
-    });
-    this.version(2).stores({
-      products: '++id,sku,barcode,name,brand,category,subcategory,createdAt',
-      transactions: '++id,transactionId,cashierId,cashierName,createdAt,syncStatus,shiftId',
-      customers: '++id,phone,name,createdAt',
-      users: '++id,role,isActive,lastLogin,createdAt',
-      inventoryLog: '++id,productId,type,createdAt',
-      shifts: '++id,cashierId,status,createdAt'
     });
   }
 }
