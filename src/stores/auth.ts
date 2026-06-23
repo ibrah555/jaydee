@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import { otpService } from '../services/otp';
 import { db } from '../db/schema';
-import { ConfirmationResult } from 'firebase/auth';
 
 type UserRole = 'owner' | 'manager' | 'cashier' | 'inventory' | 'superadmin';
 
@@ -15,15 +13,8 @@ type User = {
 
 type AuthStore = {
   user: User | null;
-  loginStep: 'credentials' | 'otp';
-  tempUsername: string;
-  tempPhone: string;
-  otpAttempts: number;
-  maxOtpAttempts: number;
-  startLogin: (username: string, password: string, appVerifier: any) => Promise<{ success: boolean; message: string }>;
-  verifyOTP: (otp: string) => Promise<{ success: boolean; message: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
-  resetLoginStep: () => void;
   getAllUsers: () => Promise<any[]>;
   createUser: (data: any) => Promise<{ success: boolean; message: string }>;
   deleteUser: (id: number) => Promise<{ success: boolean; message: string }>;
@@ -46,89 +37,31 @@ const getSavedUser = (): User | null => {
   }
 };
 
-let currentConfirmationResult: ConfirmationResult | null = null;
-
-export const useAuthStore = create<AuthStore>((set, get) => ({
+export const useAuthStore = create<AuthStore>((set) => ({
   user: getSavedUser(),
-  loginStep: 'credentials',
-  tempUsername: '',
-  tempPhone: '',
-  otpAttempts: 0,
-  maxOtpAttempts: 3,
-  startLogin: async (username, password, appVerifier) => {
+  login: async (username, password) => {
     const normalized = username.trim().toLowerCase();
     const found = defaultUsers[normalized];
     if (!found || found.password !== password) {
       return { success: false, message: 'Invalid username or password' };
     }
 
-    if (!appVerifier) {
-      return { success: false, message: 'Recaptcha not initialized. Please try again.' };
-    }
-
-    currentConfirmationResult = await otpService.sendOTP(found.phone, appVerifier);
-
-    if (!currentConfirmationResult) {
-      return { success: false, message: 'Unable to send OTP. Try again later.' };
-    }
-
-    set({
-      loginStep: 'otp',
-      tempUsername: found.username,
-      tempPhone: found.phone,
-      otpAttempts: 0
-    });
-
-    return { success: true, message: `OTP sent to ${found.phone.replace(/.(?=.{4})/g, '*')}` };
-  },
-  verifyOTP: async (otp) => {
-    const state = get();
-
-    if (!currentConfirmationResult) {
-      set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-      return { success: false, message: 'OTP expired. Please login again.' };
-    }
-
-    try {
-      await currentConfirmationResult.confirm(otp);
-    } catch (error) {
-      const nextAttempts = state.otpAttempts + 1;
-      if (nextAttempts >= state.maxOtpAttempts) {
-        set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-        currentConfirmationResult = null;
-        return { success: false, message: 'Too many failed attempts. Please restart login.' };
-      }
-      set({ otpAttempts: nextAttempts });
-      return { success: false, message: 'Invalid OTP. Please try again.' };
-    }
-
-    const loggedInUser = defaultUsers[state.tempUsername];
-    if (!loggedInUser) {
-      set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-      currentConfirmationResult = null;
-      return { success: false, message: 'User not found. Please login again.' };
-    }
-
     const user = {
-      id: loggedInUser.id,
-      username: loggedInUser.username,
-      name: loggedInUser.name,
-      role: loggedInUser.role,
-      phone: loggedInUser.phone
+      id: found.id,
+      username: found.username,
+      name: found.name,
+      role: found.role,
+      phone: found.phone
     };
+    
     localStorage.setItem('jaydee-user', JSON.stringify(user));
-    set({ user, loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    currentConfirmationResult = null;
-    return { success: true, message: 'Authentication successful' };
+    set({ user });
+    
+    return { success: true, message: 'Login successful' };
   },
   signOut: () => {
     localStorage.removeItem('jaydee-user');
-    set({ user: null, loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    currentConfirmationResult = null;
-  },
-  resetLoginStep: () => {
-    set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    currentConfirmationResult = null;
+    set({ user: null });
   },
   getAllUsers: async () => {
     try {
@@ -171,3 +104,4 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
   }
 }));
+
