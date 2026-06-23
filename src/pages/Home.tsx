@@ -1,8 +1,16 @@
+import { useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
-import { Link } from 'react-router-dom';
 
 export default function Home() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user?.role === 'cashier') {
+      navigate('/sale', { replace: true });
+    }
+  }, [user, navigate]);
 
   const isCashier = user?.role === 'cashier';
   const canSeeDashboard = ['owner', 'manager', 'superadmin'].includes(user?.role || '');

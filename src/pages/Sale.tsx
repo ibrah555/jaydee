@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Search, Camera, Plus, ShoppingBag, Trash2, CheckCircle2, ShoppingCart } from 'lucide-react';
+import { Search, Camera, Plus, ShoppingBag, Trash2, CheckCircle2, ShoppingCart, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useProductStore } from '../stores/product';
 import { useCartStore } from '../stores/cart';
 import { useTransactionStore } from '../stores/transaction';
@@ -14,8 +15,9 @@ export default function Sale() {
   const { products, loadProducts } = useProductStore();
   const { items, subtotal, taxTotal, total, addItem, removeItem, updateQuantity, applyDiscountPercent, clearCart } = useCartStore();
   const { saveTransaction, loadTransactions, currentTransaction } = useTransactionStore();
-  const { user } = useAuthStore();
+  const { user, signOut } = useAuthStore();
   const { activeShift } = useShiftStore();
+  const navigate = useNavigate();
 
   const [manualCode, setManualCode] = useState('');
   const [scanStatus, setScanStatus] = useState('Point camera at barcode');
@@ -30,6 +32,11 @@ export default function Sale() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerId = 'html5qr-scanner';
+
+  const handleLogout = () => {
+    signOut();
+    navigate('/login');
+  };
 
   useEffect(() => {
     loadProducts();
@@ -236,7 +243,7 @@ export default function Sale() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6 pb-12">
       {/* Enforce register opening float limit */}
       <ShiftManagement />
 
@@ -245,6 +252,15 @@ export default function Sale() {
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Checkout</span>
           <h1 className="text-2xl md:text-3xl font-bold text-accent">Cart & Scanner</h1>
         </div>
+        {user?.role === 'cashier' && (
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2.5 transition self-start sm:self-auto text-sm"
+          >
+            <LogOut className="w-4 h-4 text-slate-500" />
+            Sign Out
+          </button>
+        )}
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

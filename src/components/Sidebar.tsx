@@ -19,7 +19,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  if (!user) return null;
+  if (!user || user.role === 'cashier') return null;
 
   const handleLogout = () => {
     signOut();
