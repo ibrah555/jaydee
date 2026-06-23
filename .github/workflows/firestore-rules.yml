@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 20
       - name: Install
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       - name: Run Firestore rules tests
         run: npm run test:rules
         env:
