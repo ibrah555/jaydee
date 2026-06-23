@@ -1,45 +1,42 @@
-// OTP Service - generates and sends OTP via SMS
-// For production, integrate with Twilio, Firebase, or AWS SNS
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { auth } from './firebase';
 
 export interface OTPService {
-  generateOTP(): string;
-  sendOTP(phone: string, otp: string): Promise<boolean>;
-  verifyOTP(otp: string, expectedOtp: string): boolean;
+  setupRecaptcha(containerId: string): Promise<RecaptchaVerifier | null>;
+  sendOTP(phone: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null>;
 }
 
-// Simple OTP generator (6 digits)
-const generateOTP = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-// Mock SMS sender - in production use Twilio or Firebase
-const sendSMS = async (phone: string, otp: string): Promise<boolean> => {
+// Set up Recaptcha which is required by Firebase Phone Auth
+const setupRecaptcha = async (containerId: string): Promise<RecaptchaVerifier | null> => {
+  if (!auth) return null;
   try {
-    // Placeholder: In production, call your SMS provider API
-    console.log(`[SMS] Sending OTP ${otp} to ${phone}`);
-    
-    // For demo, simulate sending to a webhook or service
-    // const response = await fetch('/api/send-otp', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ phone, otp })
-    // });
-    // return response.ok;
-    
-    // For now, always return true in development
-    return true;
+    const recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      }
+    });
+    return recaptchaVerifier;
   } catch (error) {
-    console.error('Failed to send OTP:', error);
-    return false;
+    console.error('Failed to setup recaptcha:', error);
+    return null;
   }
 };
 
-const verifyOTP = (otp: string, expectedOtp: string): boolean => {
-  return otp === expectedOtp;
+// Send SMS via Firebase
+const sendOTP = async (phone: string, appVerifier: RecaptchaVerifier): Promise<ConfirmationResult | null> => {
+  if (!auth) return null;
+  try {
+    console.log(`[Firebase SMS] Sending OTP to ${phone}`);
+    const confirmationResult = await signInWithPhoneNumber(auth, phone, appVerifier);
+    return confirmationResult;
+  } catch (error) {
+    console.error('Failed to send OTP via Firebase:', error);
+    return null;
+  }
 };
 
 export const otpService = {
-  generateOTP,
-  sendSMS,
-  verifyOTP
+  setupRecaptcha,
+  sendOTP
 };

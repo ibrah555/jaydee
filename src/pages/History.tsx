@@ -46,7 +46,7 @@ export default function History() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm text-slate-500">{transaction.transactionId}</p>
-                    <h2 className="mt-2 text-lg font-semibold text-slate-900">${transaction.total.toFixed(2)}</h2>
+                    <h2 className="mt-2 text-lg font-semibold text-slate-900">KES {transaction.total.toLocaleString()}</h2>
                     <p className="mt-1 text-sm text-slate-500">{new Date(transaction.createdAt).toLocaleString()}</p>
                   </div>
                   <div className={`rounded-3xl px-3 py-2 text-sm font-semibold ${transaction.syncStatus === 'pending' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}`}>

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { otpService } from '../services/otp';
 import { db } from '../db/schema';
+import { ConfirmationResult } from 'firebase/auth';
 
 type UserRole = 'owner' | 'manager' | 'cashier' | 'inventory' | 'superadmin';
 
@@ -19,7 +20,7 @@ type AuthStore = {
   tempPhone: string;
   otpAttempts: number;
   maxOtpAttempts: number;
-  startLogin: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  startLogin: (username: string, password: string, appVerifier: any) => Promise<{ success: boolean; message: string }>;
   verifyOTP: (otp: string) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
   resetLoginStep: () => void;
@@ -45,6 +46,8 @@ const getSavedUser = (): User | null => {
   }
 };
 
+let currentConfirmationResult: ConfirmationResult | null = null;
+
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: getSavedUser(),
   loginStep: 'credentials',
@@ -52,18 +55,20 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   tempPhone: '',
   otpAttempts: 0,
   maxOtpAttempts: 3,
-  startLogin: async (username, password) => {
+  startLogin: async (username, password, appVerifier) => {
     const normalized = username.trim().toLowerCase();
     const found = defaultUsers[normalized];
     if (!found || found.password !== password) {
       return { success: false, message: 'Invalid username or password' };
     }
 
-    // Use fixed OTP for demo purposes
-    const otp = '123456';
-    const sent = await otpService.sendSMS(found.phone, otp);
+    if (!appVerifier) {
+      return { success: false, message: 'Recaptcha not initialized. Please try again.' };
+    }
 
-    if (!sent) {
+    currentConfirmationResult = await otpService.sendOTP(found.phone, appVerifier);
+
+    if (!currentConfirmationResult) {
       return { success: false, message: 'Unable to send OTP. Try again later.' };
     }
 
@@ -73,27 +78,24 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       tempPhone: found.phone,
       otpAttempts: 0
     });
-    (get as any).currentOtp = otp;
-    
-    // Debug: log OTP to console for testing
-    console.log('[DEBUG] OTP for testing: 123456');
 
     return { success: true, message: `OTP sent to ${found.phone.replace(/.(?=.{4})/g, '*')}` };
   },
   verifyOTP: async (otp) => {
     const state = get();
-    const currentOtp = (get as any).currentOtp as string | undefined;
 
-    if (!currentOtp) {
+    if (!currentConfirmationResult) {
       set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
       return { success: false, message: 'OTP expired. Please login again.' };
     }
 
-    if (otp !== currentOtp) {
+    try {
+      await currentConfirmationResult.confirm(otp);
+    } catch (error) {
       const nextAttempts = state.otpAttempts + 1;
       if (nextAttempts >= state.maxOtpAttempts) {
         set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-        (get as any).currentOtp = undefined;
+        currentConfirmationResult = null;
         return { success: false, message: 'Too many failed attempts. Please restart login.' };
       }
       set({ otpAttempts: nextAttempts });
@@ -103,7 +105,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const loggedInUser = defaultUsers[state.tempUsername];
     if (!loggedInUser) {
       set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-      (get as any).currentOtp = undefined;
+      currentConfirmationResult = null;
       return { success: false, message: 'User not found. Please login again.' };
     }
 
@@ -116,17 +118,17 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     };
     localStorage.setItem('jaydee-user', JSON.stringify(user));
     set({ user, loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    (get as any).currentOtp = undefined;
+    currentConfirmationResult = null;
     return { success: true, message: 'Authentication successful' };
   },
   signOut: () => {
     localStorage.removeItem('jaydee-user');
     set({ user: null, loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    (get as any).currentOtp = undefined;
+    currentConfirmationResult = null;
   },
   resetLoginStep: () => {
     set({ loginStep: 'credentials', tempUsername: '', tempPhone: '', otpAttempts: 0 });
-    (get as any).currentOtp = undefined;
+    currentConfirmationResult = null;
   },
   getAllUsers: async () => {
     try {

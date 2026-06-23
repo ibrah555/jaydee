@@ -101,7 +101,7 @@ export default function Products() {
                   <ChevronRight className="h-5 w-5 text-slate-400" />
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-                  <span>Price ${product.sellingPrice.toFixed(2)}</span>
+                  <span>Price KES {product.sellingPrice.toLocaleString()}</span>
                   <span>Stock {product.stockQuantity}</span>
                   <span>Barcode {product.barcode || 'N/A'}</span>
                 </div>

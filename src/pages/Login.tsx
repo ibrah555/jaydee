@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { AlertCircle, Check } from 'lucide-react';
+import { otpService } from '../services/otp';
+import { RecaptchaVerifier } from 'firebase/auth';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -10,9 +12,22 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [appVerifier, setAppVerifier] = useState<RecaptchaVerifier | null>(null);
 
   const { loginStep, tempPhone, startLogin, verifyOTP, otpAttempts, maxOtpAttempts, resetLoginStep } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let isMounted = true;
+    const setup = async () => {
+      const verifier = await otpService.setupRecaptcha('recaptcha-container');
+      if (isMounted && verifier) {
+        setAppVerifier(verifier);
+      }
+    };
+    setup();
+    return () => { isMounted = false; };
+  }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +40,7 @@ export default function Login() {
     setError('');
     setSuccessMessage('');
 
-    const result = await startLogin(username, password);
+    const result = await startLogin(username, password, appVerifier);
 
     setLoading(false);
 
@@ -76,6 +91,8 @@ export default function Login() {
           <h1 className="text-3xl font-semibold text-accent">JayDee POS</h1>
           <p className="mt-2 text-sm text-slate-500">Secure Login with password + OTP</p>
         </div>
+
+        <div id="recaptcha-container"></div>
 
         {loginStep === 'credentials' ? (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
