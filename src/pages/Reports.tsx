@@ -4,10 +4,12 @@ import { db } from '../db/schema';
 import { Calendar, Download, TrendingUp, DollarSign, Package, Activity } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfDay, isWithinInterval, startOfDay } from 'date-fns';
 
-type DateFilter = 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'all';
+type DateFilter = 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'all' | 'custom';
 
 export default function Reports() {
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+  const [customStart, setCustomStart] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [customEnd, setCustomEnd] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   // Fetch all needed data
   const transactions = useLiveQuery(() => db.transactions.toArray()) || [];
@@ -33,6 +35,10 @@ export default function Reports() {
       case 'thisMonth':
         start = startOfMonth(now);
         break;
+      case 'custom':
+        start = startOfDay(new Date(customStart));
+        end = endOfDay(new Date(customEnd));
+        break;
       case 'all':
       default:
         start = new Date(0); // Beginning of time
@@ -43,7 +49,7 @@ export default function Reports() {
       const tDate = new Date(t.createdAt);
       return isWithinInterval(tDate, { start, end });
     });
-  }, [transactions, dateFilter]);
+  }, [transactions, dateFilter, customStart, customEnd]);
 
   // 2. Calculate KPIs and Profit
   const reportData = useMemo(() => {
@@ -146,34 +152,56 @@ export default function Reports() {
           <h1 className="text-2xl md:text-3xl font-bold text-accent">Profit & Loss Report</h1>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200 flex flex-wrap text-sm">
-            {[
-              { id: 'today', label: 'Today' },
-              { id: 'yesterday', label: 'Yesterday' },
-              { id: 'last7', label: '7 Days' },
-              { id: 'thisMonth', label: 'Month' },
-              { id: 'all', label: 'All Time' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setDateFilter(f.id as DateFilter)}
-                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-xl font-medium transition ${
-                  dateFilter === f.id ? 'bg-accent text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+        <div className="flex flex-col items-end gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-white rounded-2xl p-1 shadow-sm border border-slate-200 flex flex-wrap text-sm">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'yesterday', label: 'Yesterday' },
+                { id: 'last7', label: '7 Days' },
+                { id: 'thisMonth', label: 'Month' },
+                { id: 'all', label: 'All Time' },
+                { id: 'custom', label: 'Custom' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setDateFilter(f.id as DateFilter)}
+                  className={`px-3 py-1.5 md:px-4 md:py-2 rounded-xl font-medium transition ${
+                    dateFilter === f.id ? 'bg-accent text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={downloadCSV}
+              className="flex items-center gap-2 rounded-2xl bg-white border border-slate-200 px-4 py-2 text-slate-700 font-semibold shadow-sm hover:bg-slate-50 transition ml-auto sm:ml-0"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
           </div>
-          
-          <button
-            onClick={downloadCSV}
-            className="flex items-center gap-2 rounded-2xl bg-white border border-slate-200 px-4 py-2 text-slate-700 font-semibold shadow-sm hover:bg-slate-50 transition ml-auto sm:ml-0"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
+
+          {/* Custom Date Picker Fields */}
+          {dateFilter === 'custom' && (
+            <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200 text-sm">
+              <input 
+                type="date" 
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                className="bg-transparent text-slate-700 outline-none cursor-pointer"
+              />
+              <span className="text-slate-400 font-medium">to</span>
+              <input 
+                type="date" 
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                className="bg-transparent text-slate-700 outline-none cursor-pointer"
+              />
+            </div>
+          )}
         </div>
       </header>
 
