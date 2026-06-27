@@ -126,6 +126,8 @@ type ProductState = {
   setSearch: (value: string) => void;
   setCategory: (value: string) => void;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'sku'> & { sku?: string }) => Promise<number>;
+  updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
 };
 
 export const useProductStore = create<ProductState>((set) => ({
@@ -194,5 +196,18 @@ export const useProductStore = create<ProductState>((set) => ({
     const id = await db.products.add(record);
     set((state) => ({ products: [record, ...state.products] }));
     return id;
+  },
+  updateProduct: async (id, product) => {
+    const updatedAt = Date.now();
+    await db.products.update(id, { ...product, updatedAt });
+    set((state) => ({
+      products: state.products.map(p => p.id === id ? { ...p, ...product, updatedAt } : p)
+    }));
+  },
+  deleteProduct: async (id) => {
+    await db.products.delete(id);
+    set((state) => ({
+      products: state.products.filter(p => p.id !== id)
+    }));
   }
 }));

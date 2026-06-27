@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, ChevronRight } from 'lucide-react';
+import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
 import { useProductStore } from '../stores/product';
+import { Product } from '../db/schema';
 import ProductForm from '../components/ProductForm';
 
 const categories = ['All', 'Skincare', 'Makeup', 'Fragrance', 'Hair', 'Tools', 'Accessories'];
 
 export default function Products() {
   const [isOpen, setIsOpen] = useState(false);
-  const { products, loading, search, category, loadProducts, setSearch, setCategory } = useProductStore();
+  const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+  const { products, loading, search, category, loadProducts, setSearch, setCategory, deleteProduct } = useProductStore();
 
   useEffect(() => {
     loadProducts();
@@ -29,6 +31,28 @@ export default function Products() {
     [products, search, category]
   );
 
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setIsOpen(true);
+  };
+
+  const handleDelete = async (product: Product) => {
+    if (!product.id) return;
+    if (!confirm(`Are you sure you want to delete "${product.name}"? This action cannot be undone.`)) return;
+    await deleteProduct(product.id);
+  };
+
+  const handleFormClose = () => {
+    setIsOpen(false);
+    setEditingProduct(undefined);
+  };
+
+  const handleFormSaved = () => {
+    setIsOpen(false);
+    setEditingProduct(undefined);
+    loadProducts();
+  };
+
   return (
     <div className="min-h-screen p-4 pb-28">
       <header className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -39,7 +63,7 @@ export default function Products() {
         <button
           type="button"
           className="inline-flex items-center gap-2 rounded-3xl bg-accent px-4 py-3 text-white shadow-lg transition hover:bg-purple-900"
-          onClick={() => setIsOpen(true)}
+          onClick={() => { setEditingProduct(undefined); setIsOpen(true); }}
         >
           <Plus className="h-5 w-5" />
           Add product
@@ -98,7 +122,24 @@ export default function Products() {
                       <p className="mt-1 text-sm text-slate-500">SKU {product.sku} • {product.category}</p>
                     </div>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-slate-400" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(product)}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-accent/10 hover:text-accent transition"
+                      title="Edit product"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(product)}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 transition"
+                      title="Delete product"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
                   <span>Price KES {product.sellingPrice.toLocaleString()}</span>
@@ -111,7 +152,7 @@ export default function Products() {
         )}
       </div>
 
-      {isOpen && <ProductForm onClose={() => setIsOpen(false)} onSaved={() => { setIsOpen(false); loadProducts(); }} />}
+      {isOpen && <ProductForm product={editingProduct} onClose={handleFormClose} onSaved={handleFormSaved} />}
     </div>
   );
 }

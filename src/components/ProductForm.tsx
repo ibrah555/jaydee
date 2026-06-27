@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useProductStore } from '../stores/product';
 
+import { Product } from '../db/schema';
+
 type ProductFormProps = {
+  product?: Product;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -11,33 +14,35 @@ const skinTypes = ['All', 'Oily', 'Dry', 'Combination', 'Sensitive'];
 const concerns = ['Acne', 'Aging', 'Brightening', 'Hydration', 'Pores', 'Redness'];
 const tags = ['Vegan', 'Cruelty-Free', 'Organic', 'Fragrance-Free', 'SPF', 'Paraben-Free'];
 
-export default function ProductForm({ onClose, onSaved }: ProductFormProps) {
+export default function ProductForm({ product, onClose, onSaved }: ProductFormProps) {
   const addProduct = useProductStore((state) => state.addProduct);
+  const updateProduct = useProductStore((state) => state.updateProduct);
   const [isSaving, setIsSaving] = useState(false);
+  
   const [form, setForm] = useState({
-    sku: '',
-    barcode: '',
-    name: '',
-    brand: '',
-    category: categories[0],
-    subcategory: '',
-    variant: '',
-    shadeHex: '#b76e79',
-    skinTypes: ['All'] as string[],
-    concerns: [] as string[],
-    tags: [] as string[],
-    ingredients: '',
-    batchNumber: '',
-    manufacturingDate: '',
-    expiryDate: '',
-    costPrice: 0,
-    sellingPrice: 0,
-    stockQuantity: 1,
-    testerQuantity: 0,
-    supplier: '',
-    imageUrl: '',
-    notes: '',
-    lowStockThreshold: 5
+    sku: product?.sku || '',
+    barcode: product?.barcode || '',
+    name: product?.name || '',
+    brand: product?.brand || '',
+    category: product?.category || categories[0],
+    subcategory: product?.subcategory || '',
+    variant: product?.variant || '',
+    shadeHex: product?.shadeHex || '#b76e79',
+    skinTypes: product?.skinTypes || (['All'] as string[]),
+    concerns: product?.concerns || ([] as string[]),
+    tags: product?.tags || ([] as string[]),
+    ingredients: product?.ingredients || '',
+    batchNumber: product?.batchNumber || '',
+    manufacturingDate: product?.manufacturingDate || '',
+    expiryDate: product?.expiryDate || '',
+    costPrice: product?.costPrice || 0,
+    sellingPrice: product?.sellingPrice || 0,
+    stockQuantity: product?.stockQuantity || 1,
+    testerQuantity: product?.testerQuantity || 0,
+    supplier: product?.supplier || '',
+    imageUrl: product?.imageUrl || '',
+    notes: product?.notes || '',
+    lowStockThreshold: product?.lowStockThreshold || 5
   });
 
   const toggleArrayValue = (key: 'skinTypes' | 'concerns' | 'tags', value: string) => {
@@ -60,7 +65,7 @@ export default function ProductForm({ onClose, onSaved }: ProductFormProps) {
     }
 
     setIsSaving(true);
-    await addProduct({
+    const data = {
       sku: form.sku,
       barcode: form.barcode,
       name: form.name,
@@ -84,7 +89,14 @@ export default function ProductForm({ onClose, onSaved }: ProductFormProps) {
       imageUrl: form.imageUrl,
       notes: form.notes,
       lowStockThreshold: form.lowStockThreshold
-    });
+    };
+
+    if (product && product.id) {
+      await updateProduct(product.id, data);
+    } else {
+      await addProduct(data);
+    }
+    
     setIsSaving(false);
     onSaved();
   };
@@ -94,8 +106,8 @@ export default function ProductForm({ onClose, onSaved }: ProductFormProps) {
       <div className="mx-auto w-full max-w-xl rounded-[2rem] bg-white p-5 shadow-2xl ring-1 ring-slate-200">
         <div className="flex items-center justify-between pb-4">
           <div>
-            <h2 className="text-xl font-semibold text-accent">Add new product</h2>
-            <p className="mt-1 text-sm text-slate-500">Add a catalog item with full stock details.</p>
+            <h2 className="text-xl font-semibold text-accent">{product ? 'Edit product' : 'Add new product'}</h2>
+            <p className="mt-1 text-sm text-slate-500">{product ? 'Update the product details below.' : 'Add a catalog item with full stock details.'}</p>
           </div>
           <button
             type="button"
