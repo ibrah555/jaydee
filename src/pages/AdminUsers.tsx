@@ -20,7 +20,7 @@ export default function AdminUsers() {
     email: '',
     name: '',
     phone: '',
-    role: 'cashier' as const,
+    role: 'cashier' as User['role'],
     temporaryPassword: ''
   });
 
@@ -62,7 +62,7 @@ export default function AdminUsers() {
       };
 
       if (formData.temporaryPassword) {
-        updateData.password = formData.temporaryPassword;
+        updateData.passwordHash = formData.temporaryPassword;
       }
 
       const result = await updateUser(editingId, updateData);
@@ -97,7 +97,7 @@ export default function AdminUsers() {
       username: u.username,
       email: u.email,
       name: u.name,
-      phone: u.phone,
+      phone: u.phone || '',
       role: u.role,
       temporaryPassword: '' // Reset password field, only fill if they want to change it
     });
