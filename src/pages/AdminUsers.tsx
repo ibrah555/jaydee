@@ -40,7 +40,7 @@ export default function AdminUsers() {
     setLoading(false);
   };
 
-  const handleAddUser = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.username || !formData.email || !formData.name || !formData.phone) {
@@ -51,19 +51,59 @@ export default function AdminUsers() {
     setError('');
     setSuccess('');
 
-    const password = formData.temporaryPassword || generateRandomPassword();
-    const result = await createUser({
-      ...formData,
-      temporaryPassword: password
-    });
+    if (editingId) {
+      // Update existing user
+      const updateData: Partial<User> = {
+        username: formData.username,
+        email: formData.email,
+        name: formData.name,
+        phone: formData.phone,
+        role: formData.role
+      };
 
-    if (result.success) {
-      setSuccess(`User created successfully. Temporary password: ${password}`);
-      resetForm();
-      loadUsers();
+      if (formData.temporaryPassword) {
+        updateData.password = formData.temporaryPassword;
+      }
+
+      const result = await updateUser(editingId, updateData);
+      if (result.success) {
+        setSuccess('User updated successfully' + (formData.temporaryPassword ? ' (Password changed)' : ''));
+        resetForm();
+        loadUsers();
+      } else {
+        setError(result.message);
+      }
     } else {
-      setError(result.message);
+      // Create new user
+      const password = formData.temporaryPassword || generateRandomPassword();
+      const result = await createUser({
+        ...formData,
+        temporaryPassword: password
+      });
+
+      if (result.success) {
+        setSuccess(`User created successfully. Temporary password: ${password}`);
+        resetForm();
+        loadUsers();
+      } else {
+        setError(result.message);
+      }
     }
+  };
+
+  const openEditForm = (u: User) => {
+    setEditingId(u.id!);
+    setFormData({
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      phone: u.phone,
+      role: u.role,
+      temporaryPassword: '' // Reset password field, only fill if they want to change it
+    });
+    setError('');
+    setSuccess('');
+    setIsFormOpen(true);
   };
 
   const handleDeleteUser = async (id: number) => {
@@ -111,7 +151,7 @@ export default function AdminUsers() {
               <h1 className="mt-2 text-2xl font-semibold text-accent">User Management</h1>
             </div>
             <button
-              onClick={() => setIsFormOpen(true)}
+              onClick={() => { resetForm(); setIsFormOpen(true); }}
               className="inline-flex items-center gap-2 rounded-3xl bg-accent px-4 py-3 text-white shadow-lg hover:bg-purple-900"
             >
               <Plus className="h-5 w-5" />
@@ -124,8 +164,8 @@ export default function AdminUsers() {
       {/* Form Modal */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">Add New User</h2>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold text-slate-900 mb-4">{editingId ? 'Edit User' : 'Add New User'}</h2>
 
             {error && (
               <div className="mb-4 flex items-start gap-3 rounded-2xl bg-rose-50 p-3 border border-rose-200">
@@ -134,7 +174,7 @@ export default function AdminUsers() {
               </div>
             )}
 
-            <form onSubmit={handleAddUser} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
                 <input
@@ -143,6 +183,7 @@ export default function AdminUsers() {
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                   placeholder="e.g., john.doe"
+                  disabled={editingId !== null} // Prevent changing username for existing users if desired, or remove disabled to allow
                 />
               </div>
 
@@ -193,6 +234,19 @@ export default function AdminUsers() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {editingId ? 'New Password (optional)' : 'Temporary Password (optional)'}
+                </label>
+                <input
+                  type="text"
+                  value={formData.temporaryPassword}
+                  onChange={(e) => setFormData({ ...formData, temporaryPassword: e.target.value })}
+                  className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+                  placeholder={editingId ? 'Leave blank to keep current' : 'Leave blank to auto-generate'}
+                />
+              </div>
+
               <div className="flex gap-2 pt-4">
                 <button
                   type="button"
@@ -205,7 +259,7 @@ export default function AdminUsers() {
                   type="submit"
                   className="flex-1 rounded-2xl bg-accent px-4 py-2 text-white font-semibold hover:bg-purple-900"
                 >
-                  Create User
+                  {editingId ? 'Update User' : 'Create User'}
                 </button>
               </div>
             </form>
@@ -255,6 +309,13 @@ export default function AdminUsers() {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => openEditForm(u)}
+                    className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                    title="Edit User"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => handleDeactivateUser(u.id!, u.isActive)}
                     className={`rounded-2xl px-3 py-2 text-sm font-semibold ${
                       u.isActive
@@ -267,6 +328,7 @@ export default function AdminUsers() {
                   <button
                     onClick={() => handleDeleteUser(u.id!)}
                     className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+                    title="Delete User"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
