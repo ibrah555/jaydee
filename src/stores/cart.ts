@@ -8,6 +8,7 @@ type CartItem = {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  costPrice?: number;
   sku: string;
   variantId?: string;
   variantName?: string;
@@ -100,6 +101,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               quantity,
               unitPrice: price,
               totalPrice: Math.round(quantity * price * 100) / 100,
+              costPrice: variant ? variant.costPrice : product.costPrice,
               sku,
               variantId: variant?.id,
               variantName: variant?.name

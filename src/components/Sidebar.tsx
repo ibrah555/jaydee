@@ -7,6 +7,7 @@ import {
   History, 
   LogOut, 
   BarChart3, 
+  PieChart,
   ChevronLeft, 
   ChevronRight,
   UserCheck,
@@ -38,6 +39,12 @@ export default function Sidebar() {
       name: 'Dashboard',
       path: '/dashboard',
       icon: BarChart3,
+      allowedRoles: ['owner', 'manager', 'superadmin']
+    },
+    {
+      name: 'Reports',
+      path: '/reports',
+      icon: PieChart,
       allowedRoles: ['owner', 'manager', 'superadmin']
     },
     {

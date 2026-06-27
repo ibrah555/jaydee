@@ -6,6 +6,7 @@ import Products from './pages/Products';
 import History from './pages/History';
 import More from './pages/More';
 import AdminUsers from './pages/AdminUsers';
+import Reports from './pages/Reports';
 import Sale from './pages/Sale';
 import Home from './pages/Home';
 import Sidebar from './components/Sidebar';
@@ -106,6 +107,7 @@ function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/sale" element={<RoleRoute allowedRoles={['cashier']} element={<Sale />} />} />
           <Route path="/dashboard" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<Dashboard />} />} />
+          <Route path="/reports" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<Reports />} />} />
           <Route path="/products" element={<RoleRoute allowedRoles={['owner','manager','inventory','superadmin']} element={<Products />} />} />
           <Route path="/history" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<History />} />} />
           <Route path="/more" element={<RoleRoute allowedRoles={['owner','manager','inventory','superadmin']} element={<More />} />} />

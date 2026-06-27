@@ -201,6 +201,7 @@ export default function Sale() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
+        costPrice: item.costPrice,
         batchNumber: '',
         variantId: item.variantId
       })),

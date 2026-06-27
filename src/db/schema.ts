@@ -48,6 +48,7 @@ export interface TransactionItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  costPrice?: number;
   batchNumber: string;
   variantId?: string;
 }
