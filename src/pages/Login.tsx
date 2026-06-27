@@ -98,8 +98,8 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-slate-200 text-center text-xs text-slate-500">
-          <p>Demo user: username "demo", password "Demo1234"</p>
+        <div className="mt-6 pt-6 border-t border-slate-200 text-center text-xs text-slate-400">
+          <p>Powered by Silent Strides Network LTD</p>
         </div>
       </div>
     </div>

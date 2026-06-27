@@ -176,7 +176,7 @@ export default function Sidebar() {
         </nav>
 
         {/* Logout Action */}
-        <div className="p-3 border-t border-slate-800/80">
+        <div className="p-3 border-t border-slate-800/80 flex flex-col gap-2">
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 w-full px-3 py-3 rounded-xl hover:bg-red-950/30 text-slate-400 hover:text-red-400 transition font-medium text-sm"
@@ -184,6 +184,11 @@ export default function Sidebar() {
             <LogOut className="w-5 h-5 shrink-0" />
             {!isCollapsed && <span>Sign Out</span>}
           </button>
+          {!isCollapsed && (
+            <div className="text-center text-[10px] text-slate-500 font-medium pb-2">
+              Powered by Silent Strides Network LTD
+            </div>
+          )}
         </div>
       </aside>
     </>
