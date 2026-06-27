@@ -111,7 +111,7 @@ export default function More() {
                     const { db } = await import('../db/schema');
                     await db.delete();
                     await db.open();
-                    await importDB(file, { clearTablesBeforeImport: true });
+                    await importDB(file);
                     alert('Backup restored successfully! Please refresh the page.');
                     window.location.reload();
                   } catch (error) {
