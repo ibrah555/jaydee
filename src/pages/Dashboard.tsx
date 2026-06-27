@@ -77,7 +77,7 @@ export default function Dashboard() {
           lowStockItems.push({
             name: p.name,
             brand: p.brand,
-            sku: v.sku || p.sku,
+            sku: p.sku,
             barcode: v.barcode || p.barcode,
             variantName: v.name,
             stock: v.stockQuantity,
