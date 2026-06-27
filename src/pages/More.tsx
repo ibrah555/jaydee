@@ -63,12 +63,66 @@ export default function More() {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-4">
             <Settings className="h-6 w-6 text-slate-400" />
             <div>
-              <p className="font-medium text-slate-900">Backup</p>
-              <p className="text-sm text-slate-500">Coming soon...</p>
+              <p className="font-medium text-slate-900">Database Backup</p>
+              <p className="text-sm text-slate-500">Download or restore your POS data</p>
             </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={async () => {
+                try {
+                  const { exportDB } = await import('dexie-export-import');
+                  const { db } = await import('../db/schema');
+                  const blob = await exportDB(db, { prettyJson: true });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `JayDee_Backup_${new Date().toISOString().split('T')[0]}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  alert('Backup downloaded successfully!');
+                } catch (error) {
+                  alert('Failed to export database.');
+                  console.error(error);
+                }
+              }}
+              className="flex-1 rounded-2xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition text-center"
+            >
+              Export Backup
+            </button>
+            
+            <label className="flex-1 rounded-2xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition text-center cursor-pointer">
+              Import Backup
+              <input 
+                type="file" 
+                accept=".json" 
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!confirm('WARNING: Restoring will overwrite all current data on this device. Continue?')) return;
+                  
+                  try {
+                    const { importDB } = await import('dexie-export-import');
+                    const { db } = await import('../db/schema');
+                    await db.delete();
+                    await db.open();
+                    await importDB(file, { clearTablesBeforeImport: true });
+                    alert('Backup restored successfully! Please refresh the page.');
+                    window.location.reload();
+                  } catch (error) {
+                    alert('Failed to restore backup. Please ensure it is a valid JayDee POS backup file.');
+                    console.error(error);
+                  }
+                  
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
         </div>
       </div>
