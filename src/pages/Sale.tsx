@@ -13,7 +13,7 @@ import ReceiptModal from '../components/ReceiptModal';
 
 export default function Sale() {
   const { products, loadProducts } = useProductStore();
-  const { items, subtotal, taxTotal, total, addItem, removeItem, updateQuantity, applyDiscountPercent, clearCart } = useCartStore();
+  const { items, subtotal, total, addItem, removeItem, updateQuantity, applyDiscountPercent, clearCart } = useCartStore();
   const { saveTransaction, loadTransactions, currentTransaction } = useTransactionStore();
   const { user, signOut } = useAuthStore();
   const { activeShift } = useShiftStore();
@@ -206,7 +206,7 @@ export default function Sale() {
         variantId: item.variantId
       })),
       discount,
-      16,
+      0,
       paymentMethod,
       paymentDetails,
       user?.id || 'unknown',
@@ -399,7 +399,7 @@ export default function Sale() {
                   className="w-16 h-8 text-center rounded-lg border border-slate-200 outline-none focus:ring-1 focus:ring-accent font-semibold text-slate-800"
                 />
               </div>
-              <div className="flex justify-between"><span>VAT (16%)</span><span>KES {taxTotal.toLocaleString()}</span></div>
+
               <hr className="border-slate-200/60" />
               <div className="flex justify-between text-lg font-bold text-slate-900">
                 <span>Total</span>

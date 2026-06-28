@@ -18,9 +18,7 @@ type CartState = {
   items: CartItem[];
   discountPercent: number;
   discountAmount: number;
-  taxRate: number;
   subtotal: number;
-  taxTotal: number;
   total: number;
   addItem: (product: Product, quantity?: number, variant?: ProductVariant) => void;
   removeItem: (productId: number, variantId?: string) => void;
@@ -47,25 +45,21 @@ const saveCart = (items: CartItem[], discountPercent: number) => {
   }
 };
 
-const calculateTotals = (items: CartItem[], taxRate: number, discountPercent: number) => {
+const calculateTotals = (items: CartItem[], discountPercent: number) => {
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
   const discountAmount = Math.round((subtotal * discountPercent) / 100 * 100) / 100;
-  const taxable = subtotal - discountAmount;
-  const taxTotal = Math.round((taxable * taxRate) / 100 * 100) / 100;
-  const total = Math.round((taxable + taxTotal) * 100) / 100;
-  return { subtotal, discountAmount, taxTotal, total };
+  const total = Math.round((subtotal - discountAmount) * 100) / 100;
+  return { subtotal, discountAmount, total };
 };
 
 const storedCart = getStoredCart();
-const initialTotals = calculateTotals(storedCart.items, 16, storedCart.discountPercent);
+const initialTotals = calculateTotals(storedCart.items, storedCart.discountPercent);
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: storedCart.items,
   discountPercent: storedCart.discountPercent,
   discountAmount: initialTotals.discountAmount,
-  taxRate: 16,
   subtotal: initialTotals.subtotal,
-  taxTotal: initialTotals.taxTotal,
   total: initialTotals.total,
   
   addItem: (product, quantity = 1, variant) => {
@@ -108,7 +102,7 @@ export const useCartStore = create<CartState>((set, get) => ({
             }
           ];
 
-      const totals = calculateTotals(nextItems, state.taxRate, state.discountPercent);
+      const totals = calculateTotals(nextItems, state.discountPercent);
       saveCart(nextItems, state.discountPercent);
       return { ...state, items: nextItems, ...totals };
     });
@@ -146,12 +140,12 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   clearCart: () => {
     saveCart([], 0);
-    set({ items: [], discountPercent: 0, discountAmount: 0, subtotal: 0, taxTotal: 0, total: 0 });
+    set({ items: [], discountPercent: 0, discountAmount: 0, subtotal: 0, total: 0 });
   },
 
   applyDiscountPercent: (percent) => {
     set((state) => {
-      const totals = calculateTotals(state.items, state.taxRate, percent);
+      const totals = calculateTotals(state.items, percent);
       return { ...state, discountPercent: percent, ...totals };
     });
   }

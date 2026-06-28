@@ -42,7 +42,6 @@ export default function ReceiptModal({ transaction, onClose }: Props) {
           </table>
           <div class="totals">
             <p>Subtotal: KES ${transaction.subtotal.toLocaleString()}</p>
-            <p>Tax: KES ${transaction.taxAmount.toLocaleString()}</p>
             <p>Discount: KES ${transaction.discountAmount.toLocaleString()}</p>
             <h3>Total: KES ${transaction.total.toLocaleString()}</h3>
           </div>
@@ -74,7 +73,6 @@ export default function ReceiptModal({ transaction, onClose }: Props) {
     if (transaction.discountAmount > 0) {
       text += `*Discount:* KES ${transaction.discountAmount.toLocaleString()}\n`;
     }
-    text += `*Tax (16%):* KES ${transaction.taxAmount.toLocaleString()}\n`;
     text += `*Total:* *KES ${transaction.total.toLocaleString()}*\n\n`;
     text += `_Thank you for shopping with us!_`;
 
@@ -116,7 +114,6 @@ export default function ReceiptModal({ transaction, onClose }: Props) {
 
         <div className="border-t border-slate-100 pt-4 space-y-2 text-sm text-slate-600">
           <div className="flex items-center justify-between"><span>Subtotal</span><span>KES {transaction.subtotal.toLocaleString()}</span></div>
-          <div className="flex items-center justify-between"><span>Tax (16%)</span><span>KES {transaction.taxAmount.toLocaleString()}</span></div>
           {transaction.discountAmount > 0 && (
             <div className="flex items-center justify-between text-rose-600"><span>Discount</span><span>-KES {transaction.discountAmount.toLocaleString()}</span></div>
           )}

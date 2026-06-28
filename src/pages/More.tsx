@@ -52,15 +52,8 @@ export default function More() {
           </div>
         </div>
 
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <div className="flex items-center gap-3">
-            <Settings className="h-6 w-6 text-slate-400" />
-            <div>
-              <p className="font-medium text-slate-900">Tax Settings</p>
-              <p className="text-sm text-slate-500">Coming soon...</p>
-            </div>
-          </div>
-        </div>
+
+
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-center gap-3 mb-4">
