@@ -113,7 +113,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const nextItems = state.items.filter(
         (item) => !(item.productId === productId && item.variantId === variantId)
       );
-      const totals = calculateTotals(nextItems, state.taxRate, state.discountPercent);
+      const totals = calculateTotals(nextItems, state.discountPercent);
       saveCart(nextItems, state.discountPercent);
       return { ...state, items: nextItems, ...totals };
     });
@@ -132,7 +132,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         }
         return item;
       });
-      const totals = calculateTotals(nextItems, state.taxRate, state.discountPercent);
+      const totals = calculateTotals(nextItems, state.discountPercent);
       saveCart(nextItems, state.discountPercent);
       return { ...state, items: nextItems, ...totals };
     });
