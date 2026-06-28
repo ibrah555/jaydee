@@ -53,7 +53,7 @@ export default function AdminUsers() {
 
     if (editingId) {
       // Update existing user
-      const updateData: Partial<User> = {
+      const updateData: Record<string, unknown> = {
         username: formData.username,
         email: formData.email,
         name: formData.name,
@@ -97,8 +97,8 @@ export default function AdminUsers() {
       username: u.username,
       email: u.email,
       name: u.name,
-      phone: u.phone || '',
-      role: u.role,
+      phone: u.phone ?? '',
+      role: u.role as User['role'],
       temporaryPassword: '' // Reset password field, only fill if they want to change it
     });
     setError('');
