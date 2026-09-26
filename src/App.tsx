@@ -6,6 +6,7 @@ import Products from './pages/Products';
 import History from './pages/History';
 import More from './pages/More';
 import AdminUsers from './pages/AdminUsers';
+import AdminAttributes from './pages/AdminAttributes';
 import Reports from './pages/Reports';
 import Sale from './pages/Sale';
 import Home from './pages/Home';
@@ -112,6 +113,7 @@ function AppRoutes() {
           <Route path="/history" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<History />} />} />
           <Route path="/more" element={<RoleRoute allowedRoles={['owner','manager','inventory','superadmin']} element={<More />} />} />
           <Route path="/admin/users" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<AdminUsers />} />} />
+          <Route path="/admin/attributes" element={<RoleRoute allowedRoles={['owner','manager','superadmin']} element={<AdminAttributes />} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

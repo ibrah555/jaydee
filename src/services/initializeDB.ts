@@ -242,3 +242,30 @@ export async function initializeDemoTransactions() {
     console.error('Failed to initialize demo transactions:', error);
   }
 }
+
+export async function initializeDefaultAttributes() {
+  try {
+    const count = await db.productAttributes.count();
+    if (count > 0) return;
+
+    const { DEFAULT_ATTRIBUTES } = await import('../stores/attribute');
+    const toSeed: any[] = [];
+    const now = Date.now();
+
+    (Object.keys(DEFAULT_ATTRIBUTES) as (keyof typeof DEFAULT_ATTRIBUTES)[]).forEach((type) => {
+      DEFAULT_ATTRIBUTES[type].forEach((name) => {
+        toSeed.push({
+          type,
+          name,
+          createdAt: now
+        });
+      });
+    });
+
+    await db.productAttributes.bulkAdd(toSeed);
+    console.log('Default product attributes initialized:', toSeed.length);
+  } catch (error) {
+    console.error('Failed to initialize default attributes:', error);
+  }
+}
+

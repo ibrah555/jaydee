@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
-import { LogOut, Users, Settings } from 'lucide-react';
+import { LogOut, Users, Settings, Sliders } from 'lucide-react';
 
 export default function More() {
   const { user, signOut } = useAuthStore();
@@ -31,15 +31,23 @@ export default function More() {
 
       <div className="space-y-4">
         {['owner', 'manager', 'superadmin'].includes(user?.role || '') && (
-          <Link to="/admin/users" className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-accent hover:bg-accent/5 transition">
-            <div className="flex items-center gap-3">
+          <>
+            <Link to="/admin/users" className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-accent hover:bg-accent/5 transition flex items-center gap-3">
               <Users className="h-6 w-6 text-accent" />
               <div>
                 <p className="font-medium text-slate-900">User Management</p>
                 <p className="text-sm text-slate-500">Create, edit, and manage user accounts</p>
               </div>
-            </div>
-          </Link>
+            </Link>
+
+            <Link to="/admin/attributes" className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-accent hover:bg-accent/5 transition flex items-center gap-3">
+              <Sliders className="h-6 w-6 text-accent" />
+              <div>
+                <p className="font-medium text-slate-900">Categories & Attributes</p>
+                <p className="text-sm text-slate-500">Manage custom categories, product types, concerns, and tags</p>
+              </div>
+            </Link>
+          </>
         )}
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">

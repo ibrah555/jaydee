@@ -133,6 +133,15 @@ export interface InventoryLog {
   createdAt: number;
 }
 
+export type AttributeType = 'category' | 'type' | 'concern' | 'tag';
+
+export interface ProductAttribute {
+  id?: number;
+  type: AttributeType;
+  name: string;
+  createdAt: number;
+}
+
 export class JayDeeDB extends Dexie {
   products!: Table<Product, number>;
   transactions!: Table<Transaction, number>;
@@ -140,6 +149,7 @@ export class JayDeeDB extends Dexie {
   users!: Table<User, number>;
   shifts!: Table<Shift, number>;
   inventoryLog!: Table<InventoryLog, number>;
+  productAttributes!: Table<ProductAttribute, number>;
 
   constructor() {
     super('JayDeePOS');
@@ -150,6 +160,9 @@ export class JayDeeDB extends Dexie {
       users: '++id,role,isActive,lastLogin,createdAt',
       shifts: '++id,cashierId,status,createdAt',
       inventoryLog: '++id,productId,type,createdAt'
+    });
+    this.version(2).stores({
+      productAttributes: '++id,type,name,createdAt'
     });
   }
 }
