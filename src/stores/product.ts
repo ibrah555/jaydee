@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { db, Product } from '../db/schema';
+import { 
+  pushProductToFirestore, 
+  deleteProductFromFirestore, 
+  pullProductsFromFirestore, 
+  isFirebaseConfigured 
+} from '../services/firebase';
 
 const sampleProducts = [
   {
@@ -128,9 +134,10 @@ type ProductState = {
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'sku'> & { sku?: string }) => Promise<number>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
+  syncWithCloud: () => Promise<{ success: boolean; count: number; error?: string }>;
 };
 
-export const useProductStore = create<ProductState>((set) => ({
+export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   loading: false,
   search: '',
@@ -140,19 +147,39 @@ export const useProductStore = create<ProductState>((set) => ({
   setSearch: (value) => set({ search: value }),
   setCategory: (value) => set({ category: value }),
   loadProducts: async () => {
-    set({ loading: true, page: 0, products: [] });
+    set({ loading: true, page: 0 });
     try {
-      const count = await db.products.count();
-      if (count === 0) {
-        await db.products.bulkAdd(sampleProducts as any);
-      }
-      const products = await db.products
+      // First load local IndexedDB for instant UI
+      let products = await db.products
         .orderBy('createdAt')
         .reverse()
         .limit(PRODUCTS_PER_PAGE)
         .toArray();
-      const hasMore = products.length === PRODUCTS_PER_PAGE;
-      set({ products, hasMore, page: 1 });
+
+      if (products.length === 0) {
+        await db.products.bulkAdd(sampleProducts as any);
+        products = await db.products
+          .orderBy('createdAt')
+          .reverse()
+          .limit(PRODUCTS_PER_PAGE)
+          .toArray();
+      }
+
+      set({ products, hasMore: products.length === PRODUCTS_PER_PAGE, page: 1 });
+
+      // If Firebase is configured, pull latest products from Firestore in background
+      if (isFirebaseConfigured()) {
+        pullProductsFromFirestore().then(async (res) => {
+          if (res.success && res.count > 0) {
+            const refreshed = await db.products
+              .orderBy('createdAt')
+              .reverse()
+              .limit(PRODUCTS_PER_PAGE)
+              .toArray();
+            set({ products: refreshed, hasMore: refreshed.length === PRODUCTS_PER_PAGE });
+          }
+        }).catch(() => undefined);
+      }
     } finally {
       set({ loading: false });
     }
@@ -194,20 +221,54 @@ export const useProductStore = create<ProductState>((set) => ({
     } as Product;
 
     const id = await db.products.add(record);
-    set((state) => ({ products: [record, ...state.products] }));
+    const saved = { ...record, id };
+    set((state) => ({ products: [saved, ...state.products] }));
+
+    // Sync to Firestore in background
+    if (isFirebaseConfigured()) {
+      pushProductToFirestore(saved).catch(() => undefined);
+    }
+
     return id;
   },
   updateProduct: async (id, product) => {
     const updatedAt = Date.now();
     await db.products.update(id, { ...product, updatedAt });
+    const updated = await db.products.get(id);
+
     set((state) => ({
       products: state.products.map(p => p.id === id ? { ...p, ...product, updatedAt } : p)
     }));
+
+    // Sync to Firestore in background
+    if (isFirebaseConfigured() && updated) {
+      pushProductToFirestore(updated).catch(() => undefined);
+    }
   },
   deleteProduct: async (id) => {
+    const target = await db.products.get(id);
     await db.products.delete(id);
     set((state) => ({
       products: state.products.filter(p => p.id !== id)
     }));
+
+    // Sync to Firestore in background
+    if (isFirebaseConfigured() && target) {
+      deleteProductFromFirestore(target.sku || id).catch(() => undefined);
+    }
+  },
+  syncWithCloud: async () => {
+    if (!isFirebaseConfigured()) {
+      return { 
+        success: false, 
+        count: 0, 
+        error: 'Firebase Cloud Database is not configured. Add your Firebase keys in Vercel settings.' 
+      };
+    }
+    const res = await pullProductsFromFirestore();
+    if (res.success) {
+      await get().loadProducts();
+    }
+    return res;
   }
 }));

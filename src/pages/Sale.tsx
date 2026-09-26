@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Search, Camera, Plus, ShoppingBag, Trash2, CheckCircle2, ShoppingCart, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useProductStore } from '../stores/product';
@@ -11,6 +11,19 @@ import { db, Product, ProductVariant } from '../db/schema';
 import ShiftManagement from '../components/ShiftManagement';
 import ReceiptModal from '../components/ReceiptModal';
 
+const SUPPORTED_BARCODE_FORMATS = [
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.QR_CODE
+];
+
 export default function Sale() {
   const { products, loadProducts } = useProductStore();
   const { items, subtotal, total, addItem, removeItem, updateQuantity, applyDiscountPercent, clearCart } = useCartStore();
@@ -20,7 +33,7 @@ export default function Sale() {
   const navigate = useNavigate();
 
   const [manualCode, setManualCode] = useState('');
-  const [scanStatus, setScanStatus] = useState('Point camera at barcode');
+  const [scanStatus, setScanStatus] = useState('Point camera at barcode or scan with handheld scanner');
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer'>('cash');
   const [cashReceived, setCashReceived] = useState('');
@@ -31,6 +44,7 @@ export default function Sale() {
   const [variantSelectorProduct, setVariantSelectorProduct] = useState<Product | null>(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const scannerId = 'html5qr-scanner';
 
   const handleLogout = () => {
@@ -42,65 +56,139 @@ export default function Sale() {
     loadProducts();
   }, []);
 
+  // Hardware USB/Bluetooth barcode scanner global listener
   useEffect(() => {
-    // Only init scanner if shift is active
+    let buffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement;
+      const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= 3 && !isInput) {
+          e.preventDefault();
+          handleBarcodeScan(buffer);
+          buffer = '';
+        } else {
+          buffer = '';
+        }
+        return;
+      }
+
+      if (e.key.length === 1) {
+        if (diff > 80) {
+          buffer = e.key;
+        } else {
+          buffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products]);
+
+  // Camera Barcode Scanner
+  useEffect(() => {
     if (!activeShift) return;
 
-    const scanner = new Html5Qrcode(scannerId);
-    scannerRef.current = scanner;
-
-    scanner
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: 260, experimentalFeatures: { useBarCodeDetectorIfSupported: true } } as any,
-        async (decodedText) => {
-          handleBarcodeScan(decodedText);
-        },
-        (error) => {
-          if (error) {
-            setScanStatus('Scanning...');
-          }
-        }
-      )
-      .catch(() => {
-        setScanStatus('Camera access denied or unavailable');
+    try {
+      const scanner = new Html5Qrcode(scannerId, {
+        formatsToSupport: SUPPORTED_BARCODE_FORMATS,
+        verbose: false
       });
+      scannerRef.current = scanner;
+
+      const qrbox = (viewfinderWidth: number, viewfinderHeight: number) => {
+        const width = Math.floor(Math.min(viewfinderWidth * 0.88, 360));
+        const height = Math.floor(Math.min(viewfinderHeight * 0.5, 180));
+        return { width, height };
+      };
+
+      scanner
+        .start(
+          { facingMode: 'environment' },
+          {
+            fps: 15,
+            qrbox,
+            aspectRatio: 1.777778,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+          } as any,
+          async (decodedText) => {
+            handleBarcodeScan(decodedText);
+          },
+          () => {
+            // scanning loop continuous
+          }
+        )
+        .catch(() => {
+          setScanStatus('Camera scanner offline (use search or USB scanner)');
+        });
+    } catch {
+      setScanStatus('Camera unavailable');
+    }
 
     return () => {
-      (scanner.stop() as any)
-        .catch(() => undefined)
-        .finally(() => {
-          (scanner.clear() as any).catch(() => undefined);
-        });
+      if (scannerRef.current) {
+        (scannerRef.current.stop() as any)
+          .catch(() => undefined)
+          .finally(() => {
+            (scannerRef.current?.clear() as any).catch(() => undefined);
+          });
+      }
     };
   }, [activeShift]);
 
   const foundProducts = useMemo(
     () => products.filter((product) => {
       if (!manualCode.trim()) return false;
-      const query = manualCode.toLowerCase();
+      const query = manualCode.toLowerCase().trim();
       return (
         product.name.toLowerCase().includes(query) ||
         product.brand.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query) ||
-        product.barcode.toLowerCase().includes(query)
+        (product.sku && product.sku.toLowerCase().includes(query)) ||
+        (product.barcode && product.barcode.toLowerCase().includes(query))
       );
     }),
     [manualCode, products]
   );
 
   const handleBarcodeScan = async (barcode: string) => {
-    // 1. Check parent barcode
-    let product = products.find((item) => item.barcode === barcode || item.sku === barcode);
+    const clean = barcode.trim();
+    if (!clean) return;
+
+    // Cooldown throttle: ignore duplicate scans within 1.5 seconds
+    const now = Date.now();
+    if (lastScanRef.current.code === clean && now - lastScanRef.current.time < 1500) {
+      return;
+    }
+    lastScanRef.current = { code: clean, time: now };
+
+    const cleanNoSpace = clean.replace(/\s+/g, '');
+
+    // 1. Check parent barcode or SKU
+    let product = products.find((item) => {
+      const b = (item.barcode || '').trim();
+      const s = (item.sku || '').trim();
+      return b === clean || s === clean || b.replace(/\s+/g, '') === cleanNoSpace;
+    });
     
     // 2. Check sub-variant barcodes
     if (!product) {
       for (const p of products) {
         if (p.variants) {
-          const v = p.variants.find(v => v.barcode === barcode);
+          const v = p.variants.find((vr) => {
+            const vb = (vr.barcode || '').trim();
+            return vb === clean || vb.replace(/\s+/g, '') === cleanNoSpace;
+          });
           if (v) {
             addItem(p, 1, v);
-            setScanStatus(`Added ${p.name} (${v.name})`);
+            setScanStatus(`Scanned: ${p.name} (${v.name})`);
             playSuccessSound();
             return;
           }
@@ -109,7 +197,7 @@ export default function Sale() {
     }
 
     if (!product) {
-      setScanStatus(`Not found: ${barcode}`);
+      setScanStatus(`Barcode not recognized: ${clean}`);
       return;
     }
 
@@ -118,7 +206,7 @@ export default function Sale() {
       setVariantSelectorProduct(product);
     } else {
       addItem(product, 1);
-      setScanStatus(`Added ${product.name}`);
+      setScanStatus(`Scanned: ${product.name}`);
       playSuccessSound();
     }
   };

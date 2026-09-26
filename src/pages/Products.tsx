@@ -1,24 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, Pencil, Trash2, Sliders } from 'lucide-react';
+import { Plus, Search, Filter, Pencil, Trash2, Sliders, RefreshCw, Cloud, CloudOff, Check, AlertCircle } from 'lucide-react';
 import { useProductStore } from '../stores/product';
 import { useAttributeStore } from '../stores/attribute';
 import { useAuthStore } from '../stores/auth';
 import { Product } from '../db/schema';
 import ProductForm from '../components/ProductForm';
+import { isFirebaseConfigured, subscribeToCloudProducts } from '../services/firebase';
 
 export default function Products() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
-  const { products, loading, search, category, loadProducts, setSearch, setCategory, deleteProduct } = useProductStore();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const { products, loading, search, category, loadProducts, setSearch, setCategory, deleteProduct, syncWithCloud } = useProductStore();
   const { categories, loadAttributes } = useAttributeStore();
   const { user } = useAuthStore();
 
   const isAdmin = user && ['owner', 'manager', 'superadmin'].includes(user.role);
+  const hasCloud = isFirebaseConfigured();
 
   useEffect(() => {
     loadProducts();
     loadAttributes();
+
+    // Subscribe to real-time changes across devices if Firebase is active
+    const unsubscribe = subscribeToCloudProducts(() => {
+      loadProducts();
+      loadAttributes();
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   // Compute dynamic category options for filtering
@@ -70,14 +84,54 @@ export default function Products() {
     loadAttributes();
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncMessage('');
+    const res = await syncWithCloud();
+    setIsSyncing(false);
+    if (res.success) {
+      setSyncMessage(`Synced ${res.count} product(s) from cloud!`);
+      setTimeout(() => setSyncMessage(''), 4000);
+    } else {
+      setSyncMessage(res.error || 'Sync failed');
+      setTimeout(() => setSyncMessage(''), 5000);
+    }
+  };
+
   return (
     <div className="min-h-screen p-4 pb-28">
       <header className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-slate-500">Product catalog</p>
-          <h1 className="mt-2 text-2xl font-semibold text-accent">Products</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-2xl font-semibold text-accent">Products</h1>
+            {hasCloud ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200" title="Auto-syncing across all devices">
+                <Cloud className="w-3 h-3" />
+                Cloud Synced
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full border border-amber-200" title="Running in local offline mode. Add Firebase keys in Vercel to sync across devices.">
+                <CloudOff className="w-3 h-3" />
+                Local Device Only
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {hasCloud && (
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-2 rounded-3xl border border-slate-200 bg-white px-3.5 py-3 text-slate-700 shadow-sm transition hover:bg-slate-50 font-medium text-sm disabled:opacity-50"
+              title="Pull latest products from cloud database"
+            >
+              <RefreshCw className={`h-4 w-4 text-slate-500 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+            </button>
+          )}
+
           {isAdmin && (
             <Link
               to="/admin/attributes"
@@ -98,6 +152,27 @@ export default function Products() {
           </button>
         </div>
       </header>
+
+      {/* Sync toast */}
+      {syncMessage && (
+        <div className="mb-4 p-3 rounded-2xl bg-slate-900 text-white text-xs font-medium flex items-center justify-between shadow-lg">
+          <span>{syncMessage}</span>
+          <button onClick={() => setSyncMessage('')}><Check className="w-4 h-4 text-emerald-400" /></button>
+        </div>
+      )}
+
+      {/* Banner if cloud sync is not configured */}
+      {!hasCloud && (
+        <div className="mb-4 rounded-3xl bg-amber-50 p-4 border border-amber-200 text-xs text-amber-800 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900">Multi-Device Cloud Sync Not Configured</p>
+            <p className="mt-0.5 text-amber-700">
+              Products added here are stored on this device only. To see products instantly on your other phones or laptops, add your Firebase keys in your Vercel Dashboard (or use <strong>More → Database Backup</strong> to export and transfer data between devices).
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
