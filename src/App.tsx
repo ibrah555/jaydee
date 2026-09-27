@@ -90,6 +90,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-secondary text-body">
+      <SyncBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/*" element={user ? <AppRoutes /> : <Navigate to="/login" replace />} />
@@ -103,7 +104,6 @@ function AppRoutes() {
     <div className="min-h-screen flex bg-secondary text-body">
       <Sidebar />
       <div className="flex-1">
-        <SyncBanner />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/sale" element={<RoleRoute allowedRoles={['cashier']} element={<Sale />} />} />

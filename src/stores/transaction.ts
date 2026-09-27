@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db, Transaction, TransactionItem } from '../db/schema';
-import { pushTransactionToSupabase } from '../services/supabase';
+import { pushTransactionToSupabase, getSupabase } from '../services/supabase';
 
 type PaymentMethod = 'cash' | 'mobile_money' | 'bank_transfer' | 'split';
 
@@ -27,6 +27,8 @@ type TransactionState = {
     shiftId: number | undefined,
     customerPhone?: string
   ) => Promise<number>;
+  deleteTransaction: (id: number, transactionId: string) => Promise<boolean>;
+  bulkDeleteTransactions: (items: { id: number; transactionId: string }[]) => Promise<number>;
 };
 
 const generateTransactionId = () => {
@@ -199,5 +201,48 @@ export const useTransactionStore = create<TransactionState>((set) => ({
       pendingCount: transactions.filter((transaction) => transaction.syncStatus === 'pending').length
     });
     return id;
+  },
+  deleteTransaction: async (id: number, transactionId: string) => {
+    try {
+      await db.transactions.delete(id);
+      const client = getSupabase();
+      if (client && transactionId) {
+        client.from('transactions').delete().eq('transaction_id', transactionId).then(() => undefined);
+      }
+      set((state) => {
+        const next = state.transactions.filter((t) => t.id !== id);
+        return {
+          transactions: next,
+          pendingCount: next.filter((t) => t.syncStatus === 'pending').length
+        };
+      });
+      return true;
+    } catch (e) {
+      console.error('Failed to delete transaction', e);
+      return false;
+    }
+  },
+  bulkDeleteTransactions: async (items: { id: number; transactionId: string }[]) => {
+    try {
+      const ids = items.map((i) => i.id);
+      const txnIds = items.map((i) => i.transactionId).filter(Boolean);
+      await db.transactions.bulkDelete(ids);
+      const client = getSupabase();
+      if (client && txnIds.length > 0) {
+        client.from('transactions').delete().in('transaction_id', txnIds).then(() => undefined);
+      }
+      set((state) => {
+        const idSet = new Set(ids);
+        const next = state.transactions.filter((t) => !idSet.has(t.id!));
+        return {
+          transactions: next,
+          pendingCount: next.filter((t) => t.syncStatus === 'pending').length
+        };
+      });
+      return items.length;
+    } catch (e) {
+      console.error('Failed to bulk delete transactions', e);
+      return 0;
+    }
   }
 }));

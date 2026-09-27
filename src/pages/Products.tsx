@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, Pencil, Trash2, Sliders, RefreshCw, Cloud, CloudOff, Check, AlertCircle } from 'lucide-react';
+import { Plus, Search, Filter, Pencil, Trash2, Sliders, RefreshCw, Cloud, CloudOff, Check, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProductStore } from '../stores/product';
 import { useAttributeStore } from '../stores/attribute';
 import { useAuthStore } from '../stores/auth';
@@ -15,6 +15,8 @@ export default function Products() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const { products, loading, search, category, loadProducts, setSearch, setCategory, deleteProduct, syncWithCloud } = useProductStore();
   const { categories, loadAttributes } = useAttributeStore();
   const { user } = useAuthStore();
@@ -62,6 +64,16 @@ export default function Products() {
       }),
     [products, search, category]
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, category, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -238,7 +250,56 @@ export default function Products() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredProducts.map((product) => (
+            {/* Pagination Controls Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl shadow-sm ring-1 ring-slate-200 text-xs">
+              <span className="text-slate-600">
+                Showing <strong className="text-slate-900">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredProducts.length)}</strong> of <strong className="text-slate-900">{filteredProducts.length}</strong> products
+              </span>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <span>Per page:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs outline-none focus:border-accent text-slate-800 font-semibold cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-600" />
+                  </button>
+
+                  <span className="px-2 py-1 font-semibold text-slate-700">
+                    {currentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {paginatedProducts.map((product) => (
               <div key={product.id} className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
@@ -299,6 +360,48 @@ export default function Products() {
                 </div>
               </div>
             ))}
+
+            {/* Bottom pagination if multiple pages */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm ring-1 ring-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition font-medium"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .map((p, idx, arr) => (
+                      <span key={p} className="flex items-center">
+                        {idx > 0 && p - arr[idx - 1] > 1 && <span className="px-1 text-slate-400">…</span>}
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage(p)}
+                          className={`w-7 h-7 rounded-lg font-semibold transition ${
+                            currentPage === p ? 'bg-accent text-white shadow-sm' : 'hover:bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition font-medium"
+                >
+                  Next <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
