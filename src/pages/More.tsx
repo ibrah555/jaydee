@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { LogOut, Users, Settings, Sliders, Cloud } from 'lucide-react';
 import CloudSyncModal from '../components/CloudSyncModal';
-import { isFirebaseConfigured } from '../services/firebase';
+import { isSupabaseConfigured } from '../services/supabase';
 
 export default function More() {
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
-  const isCloudConnected = isFirebaseConfigured();
+  const isCloudConnected = isSupabaseConfigured();
 
   const handleLogout = () => {
     signOut();

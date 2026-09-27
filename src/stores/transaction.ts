@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db, Transaction, TransactionItem } from '../db/schema';
-import { pushTransactionToFirestore } from '../services/firebase';
+import { pushTransactionToSupabase } from '../services/supabase';
 
 type PaymentMethod = 'cash' | 'mobile_money' | 'bank_transfer' | 'split';
 
@@ -95,7 +95,7 @@ export const useTransactionStore = create<TransactionState>((set) => ({
           return;
         }
 
-        const pushed = await pushTransactionToFirestore(transaction).catch(() => false);
+        const pushed = await pushTransactionToSupabase(transaction).catch(() => false);
         if (pushed) {
           await db.transactions.update(transaction.id!, { syncStatus: 'synced', pushAttempts: attempts + 1, lastAttemptAt: now, syncFailureReason: '' });
         } else {
@@ -119,7 +119,7 @@ export const useTransactionStore = create<TransactionState>((set) => ({
     if (!tx) return false;
     if (!navigator.onLine) return false;
 
-    const pushed = await pushTransactionToFirestore(tx).catch(() => false);
+    const pushed = await pushTransactionToSupabase(tx).catch(() => false);
     if (pushed) {
       await db.transactions.update(id, { syncStatus: 'synced', syncFailureReason: '', pushAttempts: (tx.pushAttempts || 0) + 1, lastAttemptAt: Date.now() });
       // Update the transaction in the list and update pending count
@@ -184,7 +184,7 @@ export const useTransactionStore = create<TransactionState>((set) => ({
     const id = await db.transactions.add(transaction as any);
     // attempt to push immediately if online
     if (navigator.onLine) {
-      const pushed = await pushTransactionToFirestore(transaction).catch(() => false);
+      const pushed = await pushTransactionToSupabase(transaction).catch(() => false);
       if (pushed) {
         await db.transactions.update(id, { syncStatus: 'synced' });
         transaction.syncStatus = 'synced';

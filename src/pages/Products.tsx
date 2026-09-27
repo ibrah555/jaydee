@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/auth';
 import { Product } from '../db/schema';
 import ProductForm from '../components/ProductForm';
 import CloudSyncModal from '../components/CloudSyncModal';
-import { isFirebaseConfigured, subscribeToCloudProducts } from '../services/firebase';
+import { isSupabaseConfigured, subscribeToSupabaseProducts } from '../services/supabase';
 
 export default function Products() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,14 +20,14 @@ export default function Products() {
   const { user } = useAuthStore();
 
   const isAdmin = user && ['owner', 'manager', 'superadmin'].includes(user.role);
-  const hasCloud = isFirebaseConfigured();
+  const hasCloud = isSupabaseConfigured();
 
   useEffect(() => {
     loadProducts();
     loadAttributes();
 
-    // Subscribe to real-time changes across devices if Firebase is active
-    const unsubscribe = subscribeToCloudProducts(() => {
+    // Subscribe to real-time changes across devices via Supabase
+    const unsubscribe = subscribeToSupabaseProducts(() => {
       loadProducts();
       loadAttributes();
     });

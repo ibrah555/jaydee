@@ -11,3 +11,9 @@ declare module 'date-fns' {
   export function startOfDay(date: Date | number): Date;
   export function isWithinInterval(date: Date | number, interval: { start: Date | number; end: Date | number }): boolean;
 }
+
+declare module '@supabase/supabase-js' {
+  export type SupabaseClient = any;
+  export function createClient(supabaseUrl: string, supabaseKey: string, options?: any): any;
+}
+

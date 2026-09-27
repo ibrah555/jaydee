@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { 
-  isFirebaseConfigured, 
-  getFirebaseProjectId, 
-  getStoredFirebaseConfig, 
-  saveStoredFirebaseConfig, 
-  clearStoredFirebaseConfig, 
-  syncCatalogWithCloud, 
-  FirebaseConfig 
-} from '../services/firebase';
+  isSupabaseConfigured, 
+  getSupabaseProjectUrl, 
+  getStoredSupabaseConfig, 
+  saveStoredSupabaseConfig, 
+  clearStoredSupabaseConfig, 
+  syncCatalogWithSupabase, 
+  SupabaseConfig 
+} from '../services/supabase';
 import { useProductStore } from '../stores/product';
-import { Cloud, CloudOff, RefreshCw, Check, AlertCircle, X, Download, Upload, Key, ShieldCheck } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, Check, AlertCircle, X, Key, ShieldCheck, Database } from 'lucide-react';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
@@ -18,16 +18,13 @@ interface CloudSyncModalProps {
 
 export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps) {
   const { loadProducts } = useProductStore();
-  const isConnected = isFirebaseConfigured();
-  const currentProjectId = getFirebaseProjectId();
-  const storedConfig = getStoredFirebaseConfig();
+  const isConnected = isSupabaseConfigured();
+  const currentProjectUrl = getSupabaseProjectUrl();
+  const storedConfig = getStoredSupabaseConfig();
 
-  const [activeTab, setActiveTab] = useState<'status' | 'setup' | 'json'>('status');
-  const [projectId, setProjectId] = useState(storedConfig?.projectId || '');
-  const [apiKey, setApiKey] = useState(storedConfig?.apiKey || '');
-  const [authDomain, setAuthDomain] = useState(storedConfig?.authDomain || '');
-  const [appId, setAppId] = useState(storedConfig?.appId || '');
-  const [jsonConfig, setJsonConfig] = useState('');
+  const [activeTab, setActiveTab] = useState<'status' | 'setup'>('status');
+  const [url, setUrl] = useState(storedConfig?.url || currentProjectUrl || 'https://xhmxgagyydglqgarrocd.supabase.co');
+  const [anonKey, setAnonKey] = useState(storedConfig?.anonKey || '');
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ message: string; isError?: boolean } | null>(null);
@@ -38,7 +35,7 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
     setIsSyncing(true);
     setSyncResult(null);
     try {
-      const res = await syncCatalogWithCloud();
+      const res = await syncCatalogWithSupabase();
       if (res.success) {
         await loadProducts();
         setSyncResult({
@@ -56,21 +53,19 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
 
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projectId.trim() || !apiKey.trim()) {
-      setSyncResult({ message: 'Project ID and API Key are required.', isError: true });
+    if (!url.trim() || !anonKey.trim()) {
+      setSyncResult({ message: 'Project URL and Anon Key are required.', isError: true });
       return;
     }
 
-    const config: FirebaseConfig = {
-      projectId: projectId.trim(),
-      apiKey: apiKey.trim(),
-      authDomain: authDomain.trim() || `${projectId.trim()}.firebaseapp.com`,
-      appId: appId.trim()
+    const config: SupabaseConfig = {
+      url: url.trim(),
+      anonKey: anonKey.trim()
     };
 
-    const saved = saveStoredFirebaseConfig(config);
+    const saved = saveStoredSupabaseConfig(config);
     if (saved) {
-      setSyncResult({ message: 'Firebase configuration saved! Connecting...' });
+      setSyncResult({ message: 'Supabase configuration saved! Testing connection...' });
       setTimeout(() => {
         handleManualSync();
         setActiveTab('status');
@@ -80,51 +75,10 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
     }
   };
 
-  const handleParseJson = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Find JSON block or extract variables
-      let cleaned = jsonConfig.trim();
-      if (cleaned.includes('{') && cleaned.includes('}')) {
-        const start = cleaned.indexOf('{');
-        const end = cleaned.lastIndexOf('}');
-        cleaned = cleaned.substring(start, end + 1);
-        // Replace unquoted keys
-        cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-        // Replace single quotes with double quotes
-        cleaned = cleaned.replace(/'/g, '"');
-      }
-
-      const parsed = JSON.parse(cleaned);
-      if (!parsed.projectId || !parsed.apiKey) {
-        setSyncResult({ message: 'Invalid config: missing projectId or apiKey.', isError: true });
-        return;
-      }
-
-      const config: FirebaseConfig = {
-        projectId: parsed.projectId,
-        apiKey: parsed.apiKey,
-        authDomain: parsed.authDomain || `${parsed.projectId}.firebaseapp.com`,
-        appId: parsed.appId || '',
-        storageBucket: parsed.storageBucket || '',
-        messagingSenderId: parsed.messagingSenderId || ''
-      };
-
-      saveStoredFirebaseConfig(config);
-      setSyncResult({ message: 'Configuration saved! Connecting...' });
-      setTimeout(() => {
-        handleManualSync();
-        setActiveTab('status');
-      }, 500);
-    } catch {
-      setSyncResult({ message: 'Could not parse JSON. Please use the Form tab to enter fields.', isError: true });
-    }
-  };
-
   const handleDisconnect = () => {
-    if (!confirm('Are you sure you want to disconnect Cloud Sync? (Local products on this device will NOT be deleted).')) return;
-    clearStoredFirebaseConfig();
-    setSyncResult({ message: 'Disconnected from Cloud Sync.' });
+    if (!confirm('Are you sure you want to reset custom credentials? (Local products on this device will NOT be deleted).')) return;
+    clearStoredSupabaseConfig();
+    setSyncResult({ message: 'Credentials reset to default.' });
   };
 
   return (
@@ -134,11 +88,11 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-2xl ${isConnected ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-              {isConnected ? <Cloud className="w-6 h-6" /> : <CloudOff className="w-6 h-6" />}
+              <Database className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Multi-Device Cloud Sync</h2>
-              <p className="text-xs text-slate-500">Keep catalog & sales synchronized across devices</p>
+              <h2 className="text-lg font-bold text-slate-900">PostgreSQL Cloud Sync</h2>
+              <p className="text-xs text-slate-500">Powered by Supabase & Realtime WebSockets</p>
             </div>
           </div>
           <button
@@ -165,19 +119,13 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
             onClick={() => setActiveTab('status')}
             className={`flex-1 py-2 rounded-xl transition ${activeTab === 'status' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            Cloud Status
+            Database Status
           </button>
           <button
             onClick={() => setActiveTab('setup')}
             className={`flex-1 py-2 rounded-xl transition ${activeTab === 'setup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
           >
-            Setup Credentials
-          </button>
-          <button
-            onClick={() => setActiveTab('json')}
-            className={`flex-1 py-2 rounded-xl transition ${activeTab === 'json' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Paste JSON
+            API Credentials
           </button>
         </div>
 
@@ -186,118 +134,92 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
           <div className="mt-4 space-y-4">
             <div className={`p-4 rounded-2xl border ${isConnected ? 'bg-emerald-50/50 border-emerald-200' : 'bg-amber-50/50 border-amber-200'}`}>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Connection</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">PostgreSQL Connection</span>
                 <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${
                   isConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                 }`}>
-                  {isConnected ? '● Connected' : '○ Not Connected'}
+                  {isConnected ? '● Connected' : '○ Disconnected'}
                 </span>
               </div>
-              <p className="mt-2 text-sm font-bold text-slate-900">
-                {isConnected ? `Project: ${currentProjectId}` : 'Local Device Only'}
+              <p className="mt-2 text-xs font-mono font-semibold text-slate-800 break-all">
+                {currentProjectUrl || 'Not configured'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                {isConnected 
-                  ? 'All changes on this device sync automatically to other devices in real-time.' 
-                  : 'Products added on this phone/computer are saved in local storage. Connect Firebase below to sync across all phones & computers automatically.'}
+                All devices connected to this Supabase project share the exact same PostgreSQL database with real-time automatic syncing.
               </p>
             </div>
 
-            {isConnected ? (
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={handleManualSync}
-                  disabled={isSyncing}
-                  className="w-full py-3 px-4 rounded-2xl bg-accent text-white font-semibold text-sm hover:bg-purple-900 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span>{isSyncing ? 'Syncing...' : 'Sync Catalog Now (Push & Pull)'}</span>
-                </button>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isSyncing || !isConnected}
+                className="w-full py-3 px-4 rounded-2xl bg-accent text-white font-semibold text-sm hover:bg-purple-900 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync Catalog Now (Push & Pull)'}</span>
+              </button>
 
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs text-slate-400">Want to switch projects?</span>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                <p className="font-semibold text-slate-800">Direct SQL & Table Management:</p>
+                <p className="mt-1 text-slate-500">
+                  You can view and edit all your products directly in the Supabase Table Editor at:
+                  <br />
+                  <a
+                    href="https://supabase.com/dashboard/project/xhmxgagyydglqgarrocd/editor"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-accent hover:underline break-all"
+                  >
+                    https://supabase.com/dashboard/project/xhmxgagyydglqgarrocd
+                  </a>
+                </p>
+              </div>
+
+              {storedConfig && (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-slate-400">Custom credentials active</span>
                   <button
                     type="button"
                     onClick={handleDisconnect}
                     className="text-xs text-rose-600 font-semibold hover:underline"
                   >
-                    Disconnect
+                    Reset Credentials
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('setup')}
-                  className="w-full py-3 px-4 rounded-2xl bg-accent text-white font-semibold text-sm hover:bg-purple-900 shadow-md transition flex items-center justify-center gap-2"
-                >
-                  <Key className="w-4 h-4" />
-                  <span>Connect Firebase Project</span>
-                </button>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-800">Quick offline transfer without setup:</p>
-                  <p className="mt-1 text-slate-500">
-                    Go to <strong>More → Database Backup</strong>, tap <strong>Export Backup</strong> on Device 1, and tap <strong>Import Backup</strong> on Device 2 to transfer all products immediately.
-                  </p>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
-        {/* Tab 2: Manual Form Setup */}
+        {/* Tab 2: Credentials Setup */}
         {activeTab === 'setup' && (
           <form onSubmit={handleSaveForm} className="mt-4 space-y-3">
             <p className="text-xs text-slate-500">
-              Enter your Firebase Web App configuration from your Firebase Console (Project Settings → General → Your apps).
+              Update your Supabase connection parameters (from Supabase Dashboard → Settings → API):
             </p>
 
             <label className="block space-y-1 text-xs font-semibold text-slate-700">
-              Project ID *
+              Supabase Project URL *
               <input
-                type="text"
-                placeholder="e.g. jaydee-pos-12345"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-accent"
+                type="url"
+                placeholder="https://xyz.supabase.co"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-mono outline-none focus:border-accent"
                 required
               />
             </label>
 
             <label className="block space-y-1 text-xs font-semibold text-slate-700">
-              API Key (Web API Key) *
+              Anon Public API Key *
               <input
                 type="text"
-                placeholder="AIzaSy..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-accent"
+                placeholder="eyJhbGciOi..."
+                value={anonKey}
+                onChange={(e) => setAnonKey(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-mono outline-none focus:border-accent"
                 required
-              />
-            </label>
-
-            <label className="block space-y-1 text-xs font-semibold text-slate-700">
-              Auth Domain (optional)
-              <input
-                type="text"
-                placeholder="your-project.firebaseapp.com"
-                value={authDomain}
-                onChange={(e) => setAuthDomain(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-accent"
-              />
-            </label>
-
-            <label className="block space-y-1 text-xs font-semibold text-slate-700">
-              App ID (optional)
-              <input
-                type="text"
-                placeholder="1:123456789:web:abcdef"
-                value={appId}
-                onChange={(e) => setAppId(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:border-accent"
               />
             </label>
 
@@ -306,32 +228,7 @@ export default function CloudSyncModal({ isOpen, onClose }: CloudSyncModalProps)
               className="w-full mt-2 py-3 px-4 rounded-2xl bg-accent text-white font-semibold text-sm hover:bg-purple-900 shadow-md transition flex items-center justify-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Save & Connect</span>
-            </button>
-          </form>
-        )}
-
-        {/* Tab 3: Paste JSON */}
-        {activeTab === 'json' && (
-          <form onSubmit={handleParseJson} className="mt-4 space-y-3">
-            <p className="text-xs text-slate-500">
-              Paste the <code className="bg-slate-100 px-1 py-0.5 rounded text-accent font-mono text-[11px]">firebaseConfig</code> JavaScript object or JSON directly from the Firebase Console:
-            </p>
-
-            <textarea
-              rows={6}
-              value={jsonConfig}
-              onChange={(e) => setJsonConfig(e.target.value)}
-              placeholder={`const firebaseConfig = {\n  apiKey: "AIzaSy...",\n  authDomain: "jaydee.firebaseapp.com",\n  projectId: "jaydee",\n  appId: "1:..."\n};`}
-              className="w-full font-mono text-xs rounded-2xl border border-slate-200 bg-slate-50 p-3 outline-none focus:border-accent"
-            />
-
-            <button
-              type="submit"
-              disabled={!jsonConfig.trim()}
-              className="w-full py-3 px-4 rounded-2xl bg-accent text-white font-semibold text-sm hover:bg-purple-900 shadow-md transition disabled:opacity-50"
-            >
-              Parse & Save Configuration
+              <span>Save & Connect to Supabase</span>
             </button>
           </form>
         )}

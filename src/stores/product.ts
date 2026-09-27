@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { db, Product } from '../db/schema';
 import { 
-  pushProductToFirestore, 
-  deleteProductFromFirestore, 
-  pullProductsFromFirestore, 
-  syncCatalogWithCloud,
-  isFirebaseConfigured 
-} from '../services/firebase';
+  pushProductToSupabase, 
+  deleteProductFromSupabase, 
+  syncCatalogWithSupabase,
+  isSupabaseConfigured 
+} from '../services/supabase';
 
 const sampleProducts = [
   {
@@ -168,18 +167,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
       set({ products, hasMore: products.length === PRODUCTS_PER_PAGE, page: 1 });
 
-      // If Firebase is configured, pull latest products from Firestore in background
-      if (isFirebaseConfigured()) {
-        pullProductsFromFirestore().then(async (res) => {
-          if (res.success && res.count > 0) {
-            const refreshed = await db.products
-              .orderBy('createdAt')
-              .reverse()
-              .limit(PRODUCTS_PER_PAGE)
-              .toArray();
-            set({ products: refreshed, hasMore: refreshed.length === PRODUCTS_PER_PAGE });
-          }
-        }).catch(() => undefined);
+      // If Supabase is configured, pull latest products from cloud in background
+      if (isSupabaseConfigured()) {
+        import('../services/supabase').then(({ pullProductsFromSupabase }) => {
+          pullProductsFromSupabase().then(async (res: any) => {
+            if (res.success && res.count > 0) {
+              const refreshed = await db.products
+                .orderBy('createdAt')
+                .reverse()
+                .limit(PRODUCTS_PER_PAGE)
+                .toArray();
+              set({ products: refreshed, hasMore: refreshed.length === PRODUCTS_PER_PAGE });
+            }
+          }).catch(() => undefined);
+        });
       }
     } finally {
       set({ loading: false });
@@ -225,9 +226,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const saved = { ...record, id };
     set((state) => ({ products: [saved, ...state.products] }));
 
-    // Sync to Firestore in background
-    if (isFirebaseConfigured()) {
-      pushProductToFirestore(saved).catch(() => undefined);
+    // Sync to Supabase in background
+    if (isSupabaseConfigured()) {
+      pushProductToSupabase(saved).catch(() => undefined);
     }
 
     return id;
@@ -241,9 +242,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
       products: state.products.map(p => p.id === id ? { ...p, ...product, updatedAt } : p)
     }));
 
-    // Sync to Firestore in background
-    if (isFirebaseConfigured() && updated) {
-      pushProductToFirestore(updated).catch(() => undefined);
+    // Sync to Supabase in background
+    if (isSupabaseConfigured() && updated) {
+      pushProductToSupabase(updated).catch(() => undefined);
     }
   },
   deleteProduct: async (id) => {
@@ -253,20 +254,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
       products: state.products.filter(p => p.id !== id)
     }));
 
-    // Sync to Firestore in background
-    if (isFirebaseConfigured() && target) {
-      deleteProductFromFirestore(target.sku || id).catch(() => undefined);
+    // Sync to Supabase in background
+    if (isSupabaseConfigured() && target) {
+      deleteProductFromSupabase(target.sku).catch(() => undefined);
     }
   },
   syncWithCloud: async () => {
-    if (!isFirebaseConfigured()) {
+    if (!isSupabaseConfigured()) {
       return { 
         success: false, 
         count: 0, 
-        error: 'Cloud database is not connected. Configure your Firebase settings in More → Cloud Database.' 
+        error: 'Supabase cloud database is not connected. Check your settings.' 
       };
     }
-    const res = await syncCatalogWithCloud();
+    const res = await syncCatalogWithSupabase();
     if (res.success) {
       await get().loadProducts();
     }
