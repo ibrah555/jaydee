@@ -4,6 +4,7 @@ import {
   pushProductToSupabase, 
   deleteProductFromSupabase, 
   syncCatalogWithSupabase,
+  clearDeletedSku,
   isSupabaseConfigured 
 } from '../services/supabase';
 
@@ -224,6 +225,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
     const id = await db.products.add(record);
     const saved = { ...record, id };
+    clearDeletedSku(sku);
     set((state) => ({ products: [saved, ...state.products] }));
 
     // Sync to Supabase in background

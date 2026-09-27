@@ -12,6 +12,36 @@ const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 let supabaseClient: SupabaseClient | null = null;
 let activeUrl: string | null = null;
 
+// Track deleted SKUs locally so a deleted item is never resurrected by a stale push
+export function recordDeletedSku(sku: string) {
+  try {
+    const raw = localStorage.getItem('jaydee_deleted_skus') || '[]';
+    const list: string[] = JSON.parse(raw);
+    if (!list.includes(sku)) {
+      list.push(sku);
+      localStorage.setItem('jaydee_deleted_skus', JSON.stringify(list));
+    }
+  } catch {}
+}
+
+export function getDeletedSkus(): Set<string> {
+  try {
+    const raw = localStorage.getItem('jaydee_deleted_skus');
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return new Set();
+}
+
+export function clearDeletedSku(sku: string) {
+  try {
+    const raw = localStorage.getItem('jaydee_deleted_skus');
+    if (raw) {
+      const list: string[] = JSON.parse(raw).filter((s: string) => s !== sku);
+      localStorage.setItem('jaydee_deleted_skus', JSON.stringify(list));
+    }
+  } catch {}
+}
+
 export function getStoredSupabaseConfig(): SupabaseConfig | null {
   try {
     const raw = localStorage.getItem('jaydee_supabase_config');
@@ -157,6 +187,10 @@ export async function pushProductToSupabase(product: Product): Promise<boolean> 
   const client = getSupabase();
   if (!client) return false;
 
+  // If this product was marked deleted, do not push
+  const deletedSkus = getDeletedSkus();
+  if (deletedSkus.has(product.sku)) return false;
+
   try {
     const row = toPostgresProduct(product);
     const { error } = await client
@@ -176,6 +210,8 @@ export async function pushProductToSupabase(product: Product): Promise<boolean> 
 
 // Delete product from Supabase
 export async function deleteProductFromSupabase(sku: string): Promise<boolean> {
+  recordDeletedSku(sku);
+
   const client = getSupabase();
   if (!client) return false;
 
@@ -196,7 +232,7 @@ export async function deleteProductFromSupabase(sku: string): Promise<boolean> {
   }
 }
 
-// Push ALL local products to Supabase
+// Push local products to Supabase (ignoring deleted items)
 export async function pushAllProductsToSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
   const client = getSupabase();
   if (!client) {
@@ -204,7 +240,8 @@ export async function pushAllProductsToSupabase(): Promise<{ success: boolean; c
   }
 
   try {
-    const products = await db.products.toArray();
+    const deletedSkus = getDeletedSkus();
+    const products = (await db.products.toArray()).filter((p) => !deletedSkus.has(p.sku));
     if (products.length === 0) return { success: true, count: 0 };
 
     const rows = products.map(toPostgresProduct);
@@ -222,7 +259,8 @@ export async function pushAllProductsToSupabase(): Promise<{ success: boolean; c
   }
 }
 
-// Pull all products from Supabase and merge into local Dexie
+// Pull all products from Supabase and synchronize local Dexie
+// Purges any products from local Dexie that no longer exist on Supabase
 export async function pullProductsFromSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
   const client = getSupabase();
   if (!client) {
@@ -238,22 +276,39 @@ export async function pullProductsFromSupabase(): Promise<{ success: boolean; co
       return { success: false, count: 0, error: error.message };
     }
 
-    let count = 0;
-    if (data && data.length > 0) {
-      for (const row of data) {
-        const prod = fromPostgresProduct(row);
-        const existing = await db.products.where('sku').equals(prod.sku).first();
+    const serverProducts = data || [];
+    const serverSkus = new Set(serverProducts.map((r: any) => r.sku));
+    const deletedSkus = getDeletedSkus();
 
-        if (existing && existing.id) {
-          await db.products.update(existing.id, {
-            ...prod,
-            id: existing.id
-          });
-        } else {
-          await db.products.add(prod);
-        }
-        count++;
+    // 1. Remove any local products that no longer exist on the server or were marked deleted
+    const localProducts = await db.products.toArray();
+    for (const lp of localProducts) {
+      if (!serverSkus.has(lp.sku) || deletedSkus.has(lp.sku)) {
+        await db.products.delete(lp.id!);
       }
+    }
+
+    // 2. Add or update products from server (skip if explicitly marked deleted locally)
+    let count = 0;
+    for (const row of serverProducts) {
+      if (deletedSkus.has(row.sku)) {
+        // If this device deleted it, remove it from server as well
+        client.from('products').delete().eq('sku', row.sku).then(() => undefined);
+        continue;
+      }
+
+      const prod = fromPostgresProduct(row);
+      const existing = await db.products.where('sku').equals(prod.sku).first();
+
+      if (existing && existing.id) {
+        await db.products.update(existing.id, {
+          ...prod,
+          id: existing.id
+        });
+      } else {
+        await db.products.add(prod);
+      }
+      count++;
     }
 
     return { success: true, count };
@@ -327,7 +382,7 @@ export async function pullAttributesFromSupabase(): Promise<{ success: boolean; 
   }
 }
 
-// Complete two-way sync: uploads local items, downloads cloud items
+// Complete two-way sync: PULLS FIRST to purge deletions, then PUSHES valid local items
 export async function syncCatalogWithSupabase(): Promise<{
   success: boolean;
   pushed: number;
@@ -340,20 +395,20 @@ export async function syncCatalogWithSupabase(): Promise<{
   }
 
   try {
-    // 1. Push local products to Supabase
-    const pushRes = await pushAllProductsToSupabase();
-    if (!pushRes.success && pushRes.error) {
-      return { success: false, pushed: 0, pulled: 0, error: pushRes.error };
+    // 1. Pull cloud products FIRST so deleted items are removed locally before any push
+    const pullRes = await pullProductsFromSupabase();
+    if (!pullRes.success && pullRes.error) {
+      return { success: false, pushed: 0, pulled: 0, error: pullRes.error };
     }
 
-    // 2. Push local attributes to Supabase
-    await pushAllAttributesToSupabase();
-
-    // 3. Pull cloud products from Supabase
-    const pullRes = await pullProductsFromSupabase();
-
-    // 4. Pull cloud attributes from Supabase
+    // 2. Pull cloud attributes
     await pullAttributesFromSupabase();
+
+    // 3. Push remaining local products to Supabase (will not push deleted items)
+    const pushRes = await pushAllProductsToSupabase();
+
+    // 4. Push local attributes to Supabase
+    await pushAllAttributesToSupabase();
 
     return {
       success: true,
@@ -383,6 +438,11 @@ export function subscribeToSupabaseProducts(onSync?: () => void): (() => void) |
         { event: '*', schema: 'public', table: 'products' },
         async (payload: any) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const deletedSkus = getDeletedSkus();
+            if (payload.new?.sku && deletedSkus.has(payload.new.sku)) {
+              return;
+            }
+
             const prod = fromPostgresProduct(payload.new);
             const existing = await db.products.where('sku').equals(prod.sku).first();
 
@@ -397,10 +457,15 @@ export function subscribeToSupabaseProducts(onSync?: () => void): (() => void) |
           } else if (payload.eventType === 'DELETE') {
             const oldSku = payload.old?.sku;
             if (oldSku) {
+              recordDeletedSku(oldSku);
               const existing = await db.products.where('sku').equals(oldSku).first();
               if (existing && existing.id) {
                 await db.products.delete(existing.id);
               }
+            } else {
+              // Postgres default replica identity does not always include sku on delete,
+              // so pull fresh state to purge deleted products immediately
+              await pullProductsFromSupabase();
             }
           }
 
