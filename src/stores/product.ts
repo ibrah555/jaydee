@@ -4,6 +4,7 @@ import {
   pushProductToFirestore, 
   deleteProductFromFirestore, 
   pullProductsFromFirestore, 
+  syncCatalogWithCloud,
   isFirebaseConfigured 
 } from '../services/firebase';
 
@@ -134,7 +135,7 @@ type ProductState = {
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'sku'> & { sku?: string }) => Promise<number>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
-  syncWithCloud: () => Promise<{ success: boolean; count: number; error?: string }>;
+  syncWithCloud: () => Promise<{ success: boolean; count: number; pushed?: number; pulled?: number; error?: string }>;
 };
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -262,13 +263,19 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return { 
         success: false, 
         count: 0, 
-        error: 'Firebase Cloud Database is not configured. Add your Firebase keys in Vercel settings.' 
+        error: 'Cloud database is not connected. Configure your Firebase settings in More → Cloud Database.' 
       };
     }
-    const res = await pullProductsFromFirestore();
+    const res = await syncCatalogWithCloud();
     if (res.success) {
       await get().loadProducts();
     }
-    return res;
+    return {
+      success: res.success,
+      count: res.pushed + res.pulled,
+      pushed: res.pushed,
+      pulled: res.pulled,
+      error: res.error
+    };
   }
 }));

@@ -6,6 +6,7 @@ import { useAttributeStore } from '../stores/attribute';
 import { useAuthStore } from '../stores/auth';
 import { Product } from '../db/schema';
 import ProductForm from '../components/ProductForm';
+import CloudSyncModal from '../components/CloudSyncModal';
 import { isFirebaseConfigured, subscribeToCloudProducts } from '../services/firebase';
 
 export default function Products() {
@@ -13,6 +14,7 @@ export default function Products() {
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
   const { products, loading, search, category, loadProducts, setSearch, setCategory, deleteProduct, syncWithCloud } = useProductStore();
   const { categories, loadAttributes } = useAttributeStore();
   const { user } = useAuthStore();
@@ -106,31 +108,39 @@ export default function Products() {
           <div className="flex items-center gap-2 mt-1">
             <h1 className="text-2xl font-semibold text-accent">Products</h1>
             {hasCloud ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200" title="Auto-syncing across all devices">
+              <button
+                type="button"
+                onClick={() => setIsCloudModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                title="Cloud sync connected. Click to manage."
+              >
                 <Cloud className="w-3 h-3" />
                 Cloud Synced
-              </span>
+              </button>
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full border border-amber-200" title="Running in local offline mode. Add Firebase keys in Vercel to sync across devices.">
+              <button
+                type="button"
+                onClick={() => setIsCloudModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full border border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+                title="Running in local mode. Click to connect cloud."
+              >
                 <CloudOff className="w-3 h-3" />
-                Local Device Only
-              </span>
+                Local Device Only (Tap to Setup)
+              </button>
             )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {hasCloud && (
-            <button
-              type="button"
-              onClick={handleManualSync}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-2 rounded-3xl border border-slate-200 bg-white px-3.5 py-3 text-slate-700 shadow-sm transition hover:bg-slate-50 font-medium text-sm disabled:opacity-50"
-              title="Pull latest products from cloud database"
-            >
-              <RefreshCw className={`h-4 w-4 text-slate-500 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={hasCloud ? handleManualSync : () => setIsCloudModalOpen(true)}
+            disabled={isSyncing}
+            className="inline-flex items-center gap-2 rounded-3xl border border-slate-200 bg-white px-3.5 py-3 text-slate-700 shadow-sm transition hover:bg-slate-50 font-medium text-sm disabled:opacity-50"
+            title="Sync products with cloud"
+          >
+            <RefreshCw className={`h-4 w-4 text-slate-500 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
 
           {isAdmin && (
             <Link
@@ -163,14 +173,23 @@ export default function Products() {
 
       {/* Banner if cloud sync is not configured */}
       {!hasCloud && (
-        <div className="mb-4 rounded-3xl bg-amber-50 p-4 border border-amber-200 text-xs text-amber-800 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-amber-900">Multi-Device Cloud Sync Not Configured</p>
-            <p className="mt-0.5 text-amber-700">
-              Products added here are stored on this device only. To see products instantly on your other phones or laptops, add your Firebase keys in your Vercel Dashboard (or use <strong>More → Database Backup</strong> to export and transfer data between devices).
-            </p>
+        <div className="mb-4 rounded-3xl bg-amber-50 p-4 border border-amber-200 text-xs text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-900">Multi-Device Cloud Sync Not Configured</p>
+              <p className="mt-0.5 text-amber-700">
+                Products added on this phone/computer are saved in local storage. Connect Firebase or export a backup to sync with your other devices.
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsCloudModalOpen(true)}
+            className="shrink-0 px-3.5 py-2 rounded-2xl bg-amber-600 text-white font-semibold text-xs hover:bg-amber-700 transition"
+          >
+            Setup Cloud Sync
+          </button>
         </div>
       )}
 
@@ -285,6 +304,7 @@ export default function Products() {
       </div>
 
       {isOpen && <ProductForm product={editingProduct} onClose={handleFormClose} onSaved={handleFormSaved} />}
+      <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
     </div>
   );
 }

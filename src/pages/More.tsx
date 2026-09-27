@@ -1,10 +1,15 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
-import { LogOut, Users, Settings, Sliders } from 'lucide-react';
+import { LogOut, Users, Settings, Sliders, Cloud } from 'lucide-react';
+import CloudSyncModal from '../components/CloudSyncModal';
+import { isFirebaseConfigured } from '../services/firebase';
 
 export default function More() {
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
+  const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+  const isCloudConnected = isFirebaseConfigured();
 
   const handleLogout = () => {
     signOut();
@@ -62,6 +67,25 @@ export default function More() {
 
 
 
+
+        <button
+          type="button"
+          onClick={() => setIsCloudModalOpen(true)}
+          className="w-full text-left rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 hover:ring-accent hover:bg-accent/5 transition flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-3">
+            <Cloud className="h-6 w-6 text-accent" />
+            <div>
+              <p className="font-medium text-slate-900">Cloud Database & Multi-Device Sync</p>
+              <p className="text-sm text-slate-500">Sync products and sales across all phones and computers</p>
+            </div>
+          </div>
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
+            isCloudConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {isCloudConnected ? 'Connected' : 'Setup Required'}
+          </span>
+        </button>
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-center gap-3 mb-4">
@@ -159,6 +183,7 @@ export default function More() {
           </Link>
         </div>
       </nav>
+      <CloudSyncModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} />
     </div>
   );
 }
