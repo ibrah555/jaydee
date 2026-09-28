@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { LogOut, Users, Settings, Sliders, Cloud } from 'lucide-react';
 import CloudSyncModal from '../components/CloudSyncModal';
-import { isSupabaseConfigured } from '../services/supabase';
+import { isSupabaseConfigured, wipeAllSystemData } from '../services/supabase';
 
 export default function More() {
   const { user, signOut } = useAuthStore();
@@ -151,6 +151,38 @@ export default function More() {
           </div>
         </div>
       </div>
+
+      {/* Danger Zone: Factory Reset */}
+      {['owner', 'superadmin'].includes(user?.role || '') && (
+        <div className="mt-8 pt-8 border-t border-rose-200">
+          <div className="rounded-3xl bg-rose-50 p-5 shadow-sm ring-1 ring-rose-200">
+            <h3 className="text-lg font-bold text-rose-800 mb-2">Danger Zone</h3>
+            <p className="text-sm text-rose-700 mb-4">
+              Completely wipe all products, transactions, and logs from this device and the cloud database. This action cannot be undone.
+            </p>
+            <button
+              onClick={async () => {
+                const promptMsg = "Are you absolutely sure?\n\nType 'RESET' in the box below to wipe ALL DATA (Products, Sales, Logs) from both the device and the cloud database.";
+                const input = prompt(promptMsg);
+                if (input === 'RESET') {
+                  const wipeAttributes = confirm("Do you also want to wipe all custom Categories, Types, and Concerns? (Click OK for Yes, Cancel for No)");
+                  alert("Wiping data... please wait.");
+                  const res = await wipeAllSystemData(wipeAttributes);
+                  alert(res.message);
+                  if (res.success) {
+                    window.location.reload();
+                  }
+                } else if (input !== null) {
+                  alert("Wipe cancelled: You didn't type RESET correctly.");
+                }
+              }}
+              className="w-full rounded-2xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-3 font-bold transition shadow-sm"
+            >
+              Factory Reset & Wipe All Data
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Logout Button */}
       <div className="mt-8 pt-8 border-t border-slate-200">

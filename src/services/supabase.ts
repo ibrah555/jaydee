@@ -521,3 +521,45 @@ export async function pushTransactionToSupabase(t: Transaction): Promise<boolean
     return false;
   }
 }
+
+/**
+ * Wipe all system data (products, sales, shifts, logs, cart, deleted sku records)
+ * across both Supabase cloud database and local IndexedDB so the store can start fresh.
+ */
+export async function wipeAllSystemData(wipeAttributes: boolean = false): Promise<{ success: boolean; message: string }> {
+  try {
+    const client = getSupabase();
+    if (client) {
+      try {
+        await client.from('products').delete().neq('sku', '__never_match__');
+        await client.from('transactions').delete().neq('transaction_id', '__never_match__');
+        await client.from('shifts').delete().neq('cashier_name', '__never_match__');
+        if (wipeAttributes) {
+          await client.from('product_attributes').delete().neq('name', '__never_match__');
+        }
+      } catch (cloudErr) {
+        console.warn('Cloud tables wipe warning:', cloudErr);
+      }
+    }
+
+    // Clear local IndexedDB tables
+    await db.products.clear();
+    await db.transactions.clear();
+    await db.inventoryLog.clear();
+    await db.shifts.clear();
+    await db.customers.clear();
+    if (wipeAttributes) {
+      await db.productAttributes.clear();
+    }
+
+    // Clear local storage tracking
+    localStorage.removeItem('jaydee_deleted_skus');
+    localStorage.removeItem('jaydee-cart');
+
+    return { success: true, message: 'All system data wiped successfully. You can now start entering products fresh!' };
+  } catch (e: any) {
+    console.error('Wipe data error:', e);
+    return { success: false, message: e.message || 'Failed to wipe system data.' };
+  }
+}
+
