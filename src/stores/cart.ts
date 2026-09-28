@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Product, ProductVariant } from '../db/schema';
 
-type CartItem = {
+export type CartItem = {
   productId: number;
   name: string;
   shadeHex: string;
@@ -12,6 +12,7 @@ type CartItem = {
   sku: string;
   variantId?: string;
   variantName?: string;
+  maxStock?: number;
 };
 
 type CartState = {
@@ -20,9 +21,9 @@ type CartState = {
   discountAmount: number;
   subtotal: number;
   total: number;
-  addItem: (product: Product, quantity?: number, variant?: ProductVariant) => void;
+  addItem: (product: Product, quantity?: number, variant?: ProductVariant) => { success: boolean; message?: string };
   removeItem: (productId: number, variantId?: string) => void;
-  updateQuantity: (productId: number, variantId: string | undefined, quantity: number) => void;
+  updateQuantity: (productId: number, variantId: string | undefined, quantity: number, maxStock?: number) => { success: boolean; message?: string };
   clearCart: () => void;
   applyDiscountPercent: (percent: number) => void;
 };
@@ -63,49 +64,72 @@ export const useCartStore = create<CartState>((set, get) => ({
   total: initialTotals.total,
   
   addItem: (product, quantity = 1, variant) => {
-    set((state) => {
-      const match = (item: CartItem) => 
-        item.productId === product.id && item.variantId === variant?.id;
+    const availableStock = Number(variant ? variant.stockQuantity : product.stockQuantity) || 0;
 
-      const existing = state.items.find(match);
-      
-      const price = variant ? variant.sellingPrice : product.sellingPrice;
-      const name = variant ? `${product.name} (${variant.name})` : product.name;
-      const shade = variant?.shadeHex || product.shadeHex;
-      const sku = variant?.barcode || product.sku;
+    // Check if item is completely out of stock
+    if (availableStock <= 0) {
+      return { 
+        success: false, 
+        message: `"${product.name}${variant ? ` (${variant.name})` : ''}" is OUT OF STOCK (0 available)!` 
+      };
+    }
 
-      const nextItems = existing
-        ? state.items.map((item) => {
-            if (match(item)) {
-              const qty = item.quantity + quantity;
-              return {
-                ...item,
-                quantity: qty,
-                totalPrice: Math.round(qty * item.unitPrice * 100) / 100
-              };
-            }
-            return item;
-          })
-        : [
-            ...state.items,
-            {
-              productId: product.id!,
-              name,
-              shadeHex: shade,
-              quantity,
-              unitPrice: price,
-              totalPrice: Math.round(quantity * price * 100) / 100,
-              costPrice: variant ? variant.costPrice : product.costPrice,
-              sku,
-              variantId: variant?.id,
-              variantName: variant?.name
-            }
-          ];
+    const state = get();
+    const match = (item: CartItem) => 
+      item.productId === product.id && item.variantId === variant?.id;
 
-      const totals = calculateTotals(nextItems, state.discountPercent);
-      saveCart(nextItems, state.discountPercent);
-      return { ...state, items: nextItems, ...totals };
-    });
+    const existing = state.items.find(match);
+    const currentQtyInCart = existing ? existing.quantity : 0;
+
+    // Check if adding exceeds available stock
+    if (currentQtyInCart + quantity > availableStock) {
+      return {
+        success: false,
+        message: `Cannot add ${quantity} more. Only ${availableStock} in stock (${currentQtyInCart} already in cart)!`
+      };
+    }
+
+    const price = variant ? Number(variant.sellingPrice) : Number(product.sellingPrice);
+    const name = variant ? `${product.name} (${variant.name})` : product.name;
+    const shade = variant?.shadeHex || product.shadeHex || '#b76e79';
+    const sku = variant?.barcode || product.sku;
+    const cost = variant ? Number(variant.costPrice) : Number(product.costPrice) || 0;
+
+    const nextItems = existing
+      ? state.items.map((item) => {
+          if (match(item)) {
+            const qty = item.quantity + quantity;
+            return {
+              ...item,
+              quantity: qty,
+              maxStock: availableStock,
+              costPrice: cost,
+              totalPrice: Math.round(qty * item.unitPrice * 100) / 100
+            };
+          }
+          return item;
+        })
+      : [
+          ...state.items,
+          {
+            productId: product.id!,
+            name,
+            shadeHex: shade,
+            quantity,
+            unitPrice: price,
+            totalPrice: Math.round(quantity * price * 100) / 100,
+            costPrice: cost,
+            sku,
+            variantId: variant?.id,
+            variantName: variant?.name,
+            maxStock: availableStock
+          }
+        ];
+
+    const totals = calculateTotals(nextItems, state.discountPercent);
+    saveCart(nextItems, state.discountPercent);
+    set({ ...state, items: nextItems, ...totals });
+    return { success: true };
   },
 
   removeItem: (productId, variantId) => {
@@ -119,15 +143,24 @@ export const useCartStore = create<CartState>((set, get) => ({
     });
   },
 
-  updateQuantity: (productId, variantId, quantity) => {
-    if (quantity < 1) return;
+  updateQuantity: (productId, variantId, quantity, maxStock) => {
+    if (quantity < 1) return { success: false, message: 'Quantity must be at least 1' };
+
+    if (maxStock !== undefined && quantity > maxStock) {
+      return { 
+        success: false, 
+        message: `Cannot exceed available stock of ${maxStock} items.` 
+      };
+    }
+
     set((state) => {
       const nextItems = state.items.map((item) => {
         if (item.productId === productId && item.variantId === variantId) {
+          const validQty = maxStock !== undefined ? Math.min(quantity, maxStock) : quantity;
           return {
             ...item,
-            quantity,
-            totalPrice: Math.round(quantity * item.unitPrice * 100) / 100
+            quantity: validQty,
+            totalPrice: Math.round(validQty * item.unitPrice * 100) / 100
           };
         }
         return item;
@@ -136,6 +169,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       saveCart(nextItems, state.discountPercent);
       return { ...state, items: nextItems, ...totals };
     });
+
+    return { success: true };
   },
 
   clearCart: () => {
@@ -144,9 +179,11 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   applyDiscountPercent: (percent) => {
+    const validPercent = Math.max(0, Math.min(100, percent));
     set((state) => {
-      const totals = calculateTotals(state.items, percent);
-      return { ...state, discountPercent: percent, ...totals };
+      const totals = calculateTotals(state.items, validPercent);
+      saveCart(state.items, validPercent);
+      return { ...state, discountPercent: validPercent, ...totals };
     });
   }
 }));

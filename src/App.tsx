@@ -14,6 +14,7 @@ import Sidebar from './components/Sidebar';
 import { useAuthStore } from './stores/auth';
 import SyncBanner from './components/SyncBanner';
 import { useTransactionStore } from './stores/transaction';
+import { syncCatalogWithSupabase, isSupabaseConfigured } from './services/supabase';
 
 export default function App() {
   const { user, signOut } = useAuthStore();
@@ -87,6 +88,24 @@ export default function App() {
       .then((reg: any) => reg.sync?.register('jaydee-sync').catch(() => undefined))
       .catch(() => undefined);
   }, [pendingCount]);
+
+  useEffect(() => {
+    // Automatic recurring background cloud sync when online
+    const runAutoSync = async () => {
+      if (navigator.onLine && isSupabaseConfigured()) {
+        try {
+          await syncCatalogWithSupabase();
+          await syncPendingTransactions();
+        } catch {
+          // background sync fails gracefully if connection dropped
+        }
+      }
+    };
+
+    runAutoSync();
+    const interval = setInterval(runAutoSync, 60000); // sync every 60 seconds
+    return () => clearInterval(interval);
+  }, [syncPendingTransactions]);
 
   return (
     <div className="min-h-screen bg-secondary text-body">

@@ -277,7 +277,18 @@ export default function ProductForm({ product, onClose, onSaved }: ProductFormPr
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="space-y-2 text-sm text-slate-700">
+              Buying price / Cost (KES)
+              <input
+                type="number"
+                value={form.costPrice}
+                onChange={(event) => handleChange('costPrice', Number(event.target.value))}
+                className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="0.00"
+                min={0}
+              />
+            </label>
             <label className="space-y-2 text-sm text-slate-700">
               Selling price (KES) *
               <input
@@ -301,6 +312,14 @@ export default function ProductForm({ product, onClose, onSaved }: ProductFormPr
               />
             </label>
           </div>
+
+          {form.sellingPrice > 0 && form.costPrice > 0 && (
+            <div className="text-xs font-semibold px-3 py-1.5 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-2">
+              <span>Estimated Profit: KES {(form.sellingPrice - form.costPrice).toLocaleString()}</span>
+              <span>•</span>
+              <span>Margin: {Math.round(((form.sellingPrice - form.costPrice) / form.sellingPrice) * 100)}%</span>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-2 text-sm text-slate-700">

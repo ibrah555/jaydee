@@ -129,7 +129,7 @@ export interface InventoryLog {
   newQuantity: number;
   batchNumber?: string;
   reason?: string;
-  userId: number;
+  userId?: number;
   createdAt: number;
 }
 

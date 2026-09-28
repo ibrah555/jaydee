@@ -8,6 +8,7 @@ import { useTransactionStore } from '../stores/transaction';
 import { useAuthStore } from '../stores/auth';
 import { useShiftStore } from '../stores/shift';
 import { db, Product, ProductVariant } from '../db/schema';
+import { pushProductToSupabase } from '../services/supabase';
 import ShiftManagement from '../components/ShiftManagement';
 import ReceiptModal from '../components/ReceiptModal';
 
@@ -187,7 +188,12 @@ export default function Sale() {
             return vb === clean || vb.replace(/\s+/g, '') === cleanNoSpace;
           });
           if (v) {
-            addItem(p, 1, v);
+            const res = addItem(p, 1, v);
+            if (!res.success && res.message) {
+              setScanStatus(res.message);
+              setMessage(res.message);
+              return;
+            }
             setScanStatus(`Scanned: ${p.name} (${v.name})`);
             playSuccessSound();
             return;
@@ -205,7 +211,12 @@ export default function Sale() {
     if (product.variants && product.variants.length > 0) {
       setVariantSelectorProduct(product);
     } else {
-      addItem(product, 1);
+      const res = addItem(product, 1);
+      if (!res.success && res.message) {
+        setScanStatus(res.message);
+        setMessage(res.message);
+        return;
+      }
       setScanStatus(`Scanned: ${product.name}`);
       playSuccessSound();
     }
@@ -235,7 +246,11 @@ export default function Sale() {
     if (product.variants && product.variants.length > 0) {
       setVariantSelectorProduct(product);
     } else {
-      addItem(product, 1);
+      const res = addItem(product, 1);
+      if (!res.success && res.message) {
+        setMessage(res.message);
+        return;
+      }
       playSuccessSound();
     }
   };
@@ -260,6 +275,26 @@ export default function Sale() {
     }
 
     if (!activeShift) return;
+
+    // Check stock for all items prior to completing transaction
+    for (const cartItem of items) {
+      const product = await db.products.get(cartItem.productId);
+      if (!product) {
+        setMessage(`Product "${cartItem.name}" no longer exists in catalog.`);
+        return;
+      }
+
+      let available = product.stockQuantity;
+      if (cartItem.variantId && product.variants) {
+        const v = product.variants.find(vr => vr.id === cartItem.variantId);
+        if (v) available = v.stockQuantity;
+      }
+
+      if (available < cartItem.quantity) {
+        setMessage(`Cannot complete sale: Only ${available} units of "${cartItem.name}" available in stock (Cart has ${cartItem.quantity}).`);
+        return;
+      }
+    }
 
     if (paymentMethod === 'cash') {
       const cash = Number(cashReceived);
@@ -302,23 +337,51 @@ export default function Sale() {
       activeShift.id // Shift reference
     );
 
-    // Update stock levels (supporting variants)
+    // Update stock levels (supporting variants) & push to Supabase cloud
     await Promise.all(
       items.map(async (cartItem) => {
-        const product = products.find((p) => p.id === cartItem.productId);
+        const product = await db.products.get(cartItem.productId);
         if (!product) return;
 
+        let nextStock = product.stockQuantity;
+        let nextVariants = product.variants;
+
         if (cartItem.variantId && product.variants) {
-          const nextVariants = product.variants.map(v => {
+          nextVariants = product.variants.map(v => {
             if (v.id === cartItem.variantId) {
               return { ...v, stockQuantity: Math.max(0, v.stockQuantity - cartItem.quantity) };
             }
             return v;
           });
-          await db.products.update(product.id!, { variants: nextVariants });
+          nextStock = Math.max(0, product.stockQuantity - cartItem.quantity);
+          await db.products.update(product.id!, { 
+            variants: nextVariants, 
+            stockQuantity: nextStock,
+            updatedAt: Date.now() 
+          });
         } else {
-          const nextStock = Math.max(0, product.stockQuantity - cartItem.quantity);
-          await db.products.update(product.id!, { stockQuantity: nextStock });
+          nextStock = Math.max(0, product.stockQuantity - cartItem.quantity);
+          await db.products.update(product.id!, { 
+            stockQuantity: nextStock,
+            updatedAt: Date.now() 
+          });
+        }
+
+        // Record inventory audit log
+        await db.inventoryLog.add({
+          productId: product.id!,
+          type: 'sale',
+          quantityChange: -cartItem.quantity,
+          previousQuantity: product.stockQuantity,
+          newQuantity: nextStock,
+          userId: Number(user?.id) || 1,
+          createdAt: Date.now()
+        });
+
+        // Immediately push updated stock to Supabase so other devices update
+        const refreshedProduct = await db.products.get(product.id!);
+        if (refreshedProduct) {
+          pushProductToSupabase(refreshedProduct).catch(() => undefined);
         }
       })
     );
@@ -385,19 +448,40 @@ export default function Sale() {
             {/* Quick search suggestions */}
             {foundProducts.length > 0 && (
               <div className="border border-slate-100 rounded-2xl divide-y divide-slate-50 max-h-56 overflow-y-auto bg-slate-50/50">
-                {foundProducts.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectProduct(p)}
-                    className="w-full p-3 flex items-center justify-between text-left hover:bg-white transition text-sm"
-                  >
-                    <div>
-                      <span className="font-semibold text-slate-800">{p.name}</span>
-                      <p className="text-xs text-slate-400 mt-0.5">{p.brand} · SKU: {p.sku}</p>
-                    </div>
-                    <span className="text-accent font-bold">KES {p.sellingPrice.toLocaleString()}</span>
-                  </button>
-                ))}
+                {foundProducts.map(p => {
+                  const isOutOfStock = p.stockQuantity <= 0;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectProduct(p)}
+                      disabled={isOutOfStock}
+                      className={`w-full p-3 flex items-center justify-between text-left hover:bg-white transition text-sm ${
+                        isOutOfStock ? 'opacity-50 cursor-not-allowed bg-rose-50/20' : ''
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800">{p.name}</span>
+                          {isOutOfStock ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                              OUT OF STOCK
+                            </span>
+                          ) : p.stockQuantity <= 5 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                              Low Stock: {p.stockQuantity}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              ({p.stockQuantity} in stock)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">{p.brand} · SKU: {p.sku}</p>
+                      </div>
+                      <span className="text-accent font-bold">KES {p.sellingPrice.toLocaleString()}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -433,7 +517,14 @@ export default function Sale() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h4 className="font-bold text-sm text-slate-800">{item.name}</h4>
-                        <span className="text-xs text-slate-400 mt-1 block">SKU: {item.sku}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-slate-400">SKU: {item.sku}</span>
+                          {item.maxStock !== undefined && (
+                            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              Max: {item.maxStock}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => removeItem(item.productId, item.variantId)}
@@ -453,7 +544,12 @@ export default function Sale() {
                         </button>
                         <span className="text-sm font-semibold w-5 text-center text-slate-800">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.productId, item.variantId, item.quantity + 1)}
+                          onClick={() => {
+                            const res = updateQuantity(item.productId, item.variantId, item.quantity + 1, item.maxStock);
+                            if (!res.success && res.message) {
+                              setMessage(res.message);
+                            }
+                          }}
                           className="w-7 h-7 flex items-center justify-center font-bold text-slate-500 hover:bg-slate-50 rounded-lg"
                         >
                           +
@@ -561,7 +657,11 @@ export default function Sale() {
                 <button
                   key={v.id}
                   onClick={() => {
-                    addItem(variantSelectorProduct, 1, v);
+                    const res = addItem(variantSelectorProduct, 1, v);
+                    if (!res.success && res.message) {
+                      setMessage(res.message);
+                      return;
+                    }
                     setVariantSelectorProduct(null);
                     playSuccessSound();
                   }}
