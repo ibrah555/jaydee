@@ -44,6 +44,10 @@ export default function Sale() {
   // Variant modal selector states
   const [variantSelectorProduct, setVariantSelectorProduct] = useState<Product | null>(null);
 
+  // Camera states
+  const [cameras, setCameras] = useState<{id: string, label: string}[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const lastScanRef = useRef<{ code: string; time: number }>({ code: '', time: 0 });
   const scannerId = 'html5qr-scanner';
@@ -94,56 +98,72 @@ export default function Sale() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [products]);
 
+  // Fetch available cameras
+  useEffect(() => {
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length > 0) {
+        setCameras(devices);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Camera Barcode Scanner
   useEffect(() => {
     if (!activeShift) return;
+    
+    let isSubscribed = true;
 
-    try {
-      const scanner = new Html5Qrcode(scannerId, {
-        formatsToSupport: SUPPORTED_BARCODE_FORMATS,
-        verbose: false
-      });
-      scannerRef.current = scanner;
+    const startScanner = async () => {
+      try {
+        const scanner = new Html5Qrcode(scannerId, {
+          formatsToSupport: SUPPORTED_BARCODE_FORMATS,
+          verbose: false
+        });
+        scannerRef.current = scanner;
 
-      const qrbox = (viewfinderWidth: number, viewfinderHeight: number) => {
-        const width = Math.floor(Math.min(viewfinderWidth * 0.88, 360));
-        const height = Math.floor(Math.min(viewfinderHeight * 0.5, 180));
-        return { width, height };
-      };
+        const qrbox = (viewfinderWidth: number, viewfinderHeight: number) => {
+          const width = Math.floor(Math.min(viewfinderWidth * 0.9, 400));
+          const height = Math.floor(Math.min(viewfinderHeight * 0.6, 250));
+          return { width, height };
+        };
 
-      scanner
-        .start(
-          { facingMode: 'environment' },
-          {
-            fps: 15,
-            qrbox,
-            aspectRatio: 1.777778,
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-          } as any,
-          async (decodedText) => {
-            handleBarcodeScan(decodedText);
+        const config = {
+          fps: 10, // Lower fps slightly for better autofocus time between frames
+          qrbox: qrbox,
+          disableFlip: false,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        };
+
+        const cameraConfig = activeCameraId ? { deviceId: { exact: activeCameraId } } : { facingMode: 'environment' };
+
+        await scanner.start(
+          cameraConfig,
+          config as any,
+          (decodedText) => {
+            if (isSubscribed) handleBarcodeScan(decodedText);
           },
           () => {
-            // scanning loop continuous
+            // continuous scan progress
           }
-        )
-        .catch(() => {
-          setScanStatus('Camera scanner offline (use search or USB scanner)');
-        });
-    } catch {
-      setScanStatus('Camera unavailable');
-    }
+        );
+      } catch {
+        if (isSubscribed) setScanStatus('Camera unavailable (Check permissions)');
+      }
+    };
+
+    startScanner();
 
     return () => {
+      isSubscribed = false;
       if (scannerRef.current) {
-        (scannerRef.current.stop() as any)
+        scannerRef.current.stop()
           .catch(() => undefined)
           .finally(() => {
-            (scannerRef.current?.clear() as any).catch(() => undefined);
+            try { scannerRef.current?.clear(); } catch {}
           });
       }
     };
-  }, [activeShift]);
+  }, [activeShift, activeCameraId]);
 
   const foundProducts = useMemo(
     () => products.filter((product) => {
@@ -421,12 +441,55 @@ export default function Sale() {
           {/* Scanner */}
           <div className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100">
             <div id={scannerId} className="h-64 rounded-2xl bg-slate-900 overflow-hidden relative" />
-            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-100 px-3 py-1.5 text-slate-600 font-medium">
                 <Camera className="h-3.5 w-3.5" />
                 {scanStatus}
               </div>
-              <div>{items.length} items in checkout</div>
+              <div className="flex items-center gap-2">
+                {/* Torch / Flashlight toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (scannerRef.current) {
+                      const track = (scannerRef.current as any)?.getRunningTrackSettings?.();
+                      // Try to toggle torch via ImageCapture / track constraints
+                      try {
+                        const videoElem = document.querySelector(`#${scannerId} video`) as HTMLVideoElement | null;
+                        if (videoElem && videoElem.srcObject) {
+                          const tracks = (videoElem.srcObject as MediaStream).getVideoTracks();
+                          if (tracks.length > 0) {
+                            const current = (tracks[0].getSettings() as any).torch || false;
+                            tracks[0].applyConstraints({ advanced: [{ torch: !current } as any] } as any)
+                              .then(() => setScanStatus(!current ? '🔦 Torch ON' : 'Torch OFF'))
+                              .catch(() => setScanStatus('Torch not supported on this device'));
+                          }
+                        }
+                      } catch {
+                        setScanStatus('Torch not supported');
+                      }
+                    }
+                  }}
+                  className="rounded-full bg-slate-100 border border-slate-200 p-2 hover:bg-amber-100 hover:border-amber-300 transition"
+                  title="Toggle Flashlight"
+                >
+                  💡
+                </button>
+                {/* Camera switcher (front/back) */}
+                {cameras.length > 1 && (
+                  <select
+                    value={activeCameraId || ''}
+                    onChange={e => setActiveCameraId(e.target.value || null)}
+                    className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="">Auto (Back Camera)</option>
+                    {cameras.map(cam => (
+                      <option key={cam.id} value={cam.id}>{cam.label || `Camera ${cam.id.substring(0, 8)}`}</option>
+                    ))}
+                  </select>
+                )}
+                <span className="text-xs">{items.length} items</span>
+              </div>
             </div>
           </div>
 
