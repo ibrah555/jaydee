@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { db } from '../db/schema';
 import { hashPassword, verifyPassword, generateRandomPassword } from '../services/password';
 import { getSupabase } from '../services/supabase';
@@ -31,17 +32,8 @@ const defaultUsers: Record<string, { id: string; username: string; name: string;
   admin: { id: 'u0', username: 'admin', name: 'Super Admin', role: 'superadmin', password: 'superadmin123', phone: '+254700000000' }
 };
 
-const getSavedUser = (): User | null => {
-  try {
-    const stored = localStorage.getItem('jaydee-user');
-    return stored ? (JSON.parse(stored) as User) : null;
-  } catch {
-    return null;
-  }
-};
-
-export const useAuthStore = create<AuthStore>((set) => ({
-  user: getSavedUser(),
+export const useAuthStore = create<AuthStore>()(persist((set) => ({
+  user: null,
   login: async (username, password) => {
     const cleanUser = username.trim();
     const normalized = cleanUser.toLowerCase();
@@ -78,7 +70,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
           // Update last login
           await db.users.update(foundDbUser.id!, { lastLogin: Date.now() });
 
-          localStorage.setItem('jaydee-user', JSON.stringify(user));
           set({ user });
           return { success: true, message: 'Login successful' };
         }
@@ -95,7 +86,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
           phone: foundDefault.phone
         };
 
-        localStorage.setItem('jaydee-user', JSON.stringify(user));
         set({ user });
         return { success: true, message: 'Login successful' };
       }
@@ -108,7 +98,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   signOut: () => {
-    localStorage.removeItem('jaydee-user');
     set({ user: null });
   },
 
@@ -249,4 +238,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       return { success: false, message: error.message || 'Failed to update user' };
     }
   }
+}), {
+  name: 'jaydee-user',
+  partialize: (state) => ({ user: state.user }),
 }));
