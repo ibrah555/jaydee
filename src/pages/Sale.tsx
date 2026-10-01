@@ -262,19 +262,34 @@ export default function Sale() {
 
   const playSuccessSound = () => {
     try {
-      const context = new AudioContext();
+      // Create audio context only when needed, but reuse it if possible.
+      // We attach it to the window object to persist it across renders and bypass autoplay rules after first interaction.
+      const win = window as any;
+      if (!win.jaydeeAudioContext) {
+        win.jaydeeAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const context = win.jaydeeAudioContext;
+      
+      // Resume context if browser suspended it due to autoplay policies
+      if (context.state === 'suspended') {
+        context.resume();
+      }
+
       const oscillator = context.createOscillator();
       const gain = context.createGain();
       oscillator.type = 'sine';
       oscillator.frequency.value = 880;
-      gain.gain.value = 0.12;
+      
+      // Prevent clicking sound by ramping gain
+      gain.gain.setValueAtTime(0, context.currentTime);
+      gain.gain.linearRampToValueAtTime(0.12, context.currentTime + 0.02);
+      gain.gain.linearRampToValueAtTime(0, context.currentTime + 0.1);
+      
       oscillator.connect(gain);
       gain.connect(context.destination);
-      oscillator.start();
-      setTimeout(() => {
-        oscillator.stop();
-        context.close();
-      }, 100);
+      
+      oscillator.start(context.currentTime);
+      oscillator.stop(context.currentTime + 0.1);
     } catch {
       // ignore browser restriction
     }
