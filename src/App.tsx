@@ -20,44 +20,7 @@ export default function App() {
   const { user, signOut } = useAuthStore();
   const { pendingCount, syncPendingTransactions, loadTransactions } = useTransactionStore();
 
-  useEffect(() => {
-    if (!user) return;
 
-    let timeoutId: number | undefined;
-
-    const resetTimer = () => {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-      timeoutId = window.setTimeout(() => {
-        signOut();
-      }, 5 * 60 * 1000);
-    };
-
-    const handleActivity = () => resetTimer();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        signOut();
-      }
-    };
-
-    window.addEventListener('keydown', handleActivity);
-    window.addEventListener('mousedown', handleActivity);
-    window.addEventListener('touchstart', handleActivity);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    resetTimer();
-
-    return () => {
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('mousedown', handleActivity);
-      window.removeEventListener('touchstart', handleActivity);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [user, signOut]);
 
   useEffect(() => {
     // register lightweight service worker for background sync requests
