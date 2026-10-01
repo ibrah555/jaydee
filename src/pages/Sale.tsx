@@ -131,12 +131,8 @@ export default function Sale() {
         };
 
         const cameraConfig = activeCameraId
-          ? { deviceId: { exact: activeCameraId } }
-          : {
-              facingMode: { ideal: 'environment' },
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 }
-            };
+          ? activeCameraId
+          : { facingMode: 'environment' };
 
         await scanner.start(
           cameraConfig,
