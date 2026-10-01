@@ -112,60 +112,73 @@ export default function Sale() {
     if (!activeShift) return;
     
     let isSubscribed = true;
+    let startPromise: Promise<any> | null = null;
+    let scanner: Html5Qrcode | null = null;
 
-    const startScanner = async () => {
-      try {
-        const scanner = new Html5Qrcode(scannerId, {
-          formatsToSupport: SUPPORTED_BARCODE_FORMATS,
-          verbose: false
-        });
-        scannerRef.current = scanner;
+    // A short delay prevents React StrictMode double-invocations from creating 
+    // overlapping camera requests which lock up the hardware on page refresh.
+    const initTimer = setTimeout(() => {
+      if (!isSubscribed) return;
 
-        // When scanning linear 1D barcodes and 2D QR codes on phones,
-        // omitting qrbox allows the engine to analyze the full camera sensor
-        // instead of missing barcodes that sit partially outside the bounding box.
-        const config = {
-          fps: 15,
-          disableFlip: false,
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-        };
+      scanner = new Html5Qrcode(scannerId, {
+        formatsToSupport: SUPPORTED_BARCODE_FORMATS,
+        verbose: false
+      });
+      scannerRef.current = scanner;
 
-        const cameraConfig = activeCameraId
-          ? activeCameraId
-          : { facingMode: 'environment' };
+      const config = {
+        fps: 15,
+        disableFlip: false,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
 
-        await scanner.start(
-          cameraConfig,
-          config as any,
-          (decodedText) => {
-            if (isSubscribed) handleBarcodeScan(decodedText);
-          },
-          () => {
-            // continuous scan progress
+      const cameraConfig = activeCameraId ? activeCameraId : { facingMode: 'environment' };
+
+      startPromise = scanner.start(
+        cameraConfig,
+        config as any,
+        (decodedText) => {
+          if (isSubscribed) handleBarcodeScan(decodedText);
+        },
+        () => {}
+      );
+
+      startPromise
+        .then(() => {
+          if (isSubscribed) {
+            setScanStatus('Align barcode or QR code inside the camera view');
           }
-        );
-
-        if (isSubscribed) {
-          setScanStatus('Align barcode or QR code inside the camera view');
-        }
-      } catch (err: any) {
-        if (isSubscribed) {
-          console.error('Camera scanner start error:', err);
-          setScanStatus('Camera unavailable. Check browser permissions or choose camera below.');
-        }
-      }
-    };
-
-    startScanner();
+        })
+        .catch((err) => {
+          if (isSubscribed) {
+            console.error('Camera scanner start error:', err);
+            setScanStatus('Camera unavailable. Check browser permissions or choose camera below.');
+          }
+        });
+    }, 250);
 
     return () => {
       isSubscribed = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop()
-          .catch(() => undefined)
-          .finally(() => {
-            try { scannerRef.current?.clear(); } catch {}
-          });
+      clearTimeout(initTimer);
+
+      if (scanner) {
+        // We MUST wait for the start promise to resolve/reject before attempting to stop,
+        // otherwise html5-qrcode crashes and permanently locks the camera stream.
+        const cleanup = async () => {
+          if (startPromise) {
+            await startPromise.catch(() => {});
+          }
+          try {
+            if (scanner && scanner.isScanning) {
+              await scanner.stop();
+            }
+          } catch (e) {
+             // ignore stop errors
+          } finally {
+            try { scanner?.clear(); } catch {}
+          }
+        };
+        cleanup();
       }
     };
   }, [activeShift, activeCameraId]);
