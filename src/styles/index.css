@@ -23,3 +23,17 @@ select {
   background: #b76e79;
   color: #fff;
 }
+
+/* Optimize barcode scanner video for mobile devices */
+#html5qr-scanner video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+}
+
+#html5qr-scanner__scan_region {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}

@@ -121,20 +121,22 @@ export default function Sale() {
         });
         scannerRef.current = scanner;
 
-        const qrbox = (viewfinderWidth: number, viewfinderHeight: number) => {
-          const width = Math.floor(Math.min(viewfinderWidth * 0.9, 400));
-          const height = Math.floor(Math.min(viewfinderHeight * 0.6, 250));
-          return { width, height };
-        };
-
+        // When scanning linear 1D barcodes and 2D QR codes on phones,
+        // omitting qrbox allows the engine to analyze the full camera sensor
+        // instead of missing barcodes that sit partially outside the bounding box.
         const config = {
-          fps: 10, // Lower fps slightly for better autofocus time between frames
-          qrbox: qrbox,
+          fps: 15,
           disableFlip: false,
           experimentalFeatures: { useBarCodeDetectorIfSupported: true }
         };
 
-        const cameraConfig = activeCameraId ? { deviceId: { exact: activeCameraId } } : { facingMode: 'environment' };
+        const cameraConfig = activeCameraId
+          ? { deviceId: { exact: activeCameraId } }
+          : {
+              facingMode: { ideal: 'environment' },
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 }
+            };
 
         await scanner.start(
           cameraConfig,
@@ -146,8 +148,15 @@ export default function Sale() {
             // continuous scan progress
           }
         );
-      } catch {
-        if (isSubscribed) setScanStatus('Camera unavailable (Check permissions)');
+
+        if (isSubscribed) {
+          setScanStatus('Align barcode or QR code inside the camera view');
+        }
+      } catch (err: any) {
+        if (isSubscribed) {
+          console.error('Camera scanner start error:', err);
+          setScanStatus('Camera unavailable. Check browser permissions or choose camera below.');
+        }
       }
     };
 
@@ -440,7 +449,7 @@ export default function Sale() {
         <div className="lg:col-span-7 space-y-6">
           {/* Scanner */}
           <div className="rounded-3xl bg-white p-5 shadow-sm border border-slate-100">
-            <div id={scannerId} className="h-64 rounded-2xl bg-slate-900 overflow-hidden relative" />
+            <div id={scannerId} className="w-full min-h-[260px] sm:h-72 rounded-2xl bg-slate-950 overflow-hidden relative shadow-inner" />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-100 px-3 py-1.5 text-slate-600 font-medium">
                 <Camera className="h-3.5 w-3.5" />
