@@ -109,9 +109,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
     clearDeletedSku(sku);
     set((state) => ({ products: [saved, ...state.products] }));
 
-    // Sync to Supabase in background
+    // Sync to Supabase
     if (isSupabaseConfigured()) {
-      pushProductToSupabase(saved).catch(() => undefined);
+      try {
+        await pushProductToSupabase(saved);
+      } catch (e) {
+        console.error('Failed to sync new product to cloud:', e);
+      }
     }
 
     return id;
@@ -125,9 +129,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
       products: state.products.map(p => p.id === id ? { ...p, ...product, updatedAt } : p)
     }));
 
-    // Sync to Supabase in background
+    // Sync to Supabase immediately and await
     if (isSupabaseConfigured() && updated) {
-      pushProductToSupabase(updated).catch(() => undefined);
+      try {
+        await pushProductToSupabase(updated);
+      } catch (e) {
+        console.error('Failed to sync updated product to cloud:', e);
+      }
     }
   },
   deleteProduct: async (id) => {
@@ -137,9 +145,13 @@ export const useProductStore = create<ProductState>((set, get) => ({
       products: state.products.filter(p => p.id !== id)
     }));
 
-    // Sync to Supabase in background
+    // Sync to Supabase
     if (isSupabaseConfigured() && target) {
-      deleteProductFromSupabase(target.sku).catch(() => undefined);
+      try {
+        await deleteProductFromSupabase(target.sku);
+      } catch (e) {
+        console.error('Failed to sync deletion to cloud:', e);
+      }
     }
   },
   syncWithCloud: async () => {

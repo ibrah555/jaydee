@@ -146,7 +146,7 @@ function toPostgresProduct(p: Product) {
     image_url: p.imageUrl || '',
     notes: p.notes || '',
     low_stock_threshold: Number(p.lowStockThreshold) || 5,
-    updated_at: new Date().toISOString()
+    updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString()
   };
 }
 
@@ -304,6 +304,14 @@ export async function pullProductsFromSupabase(): Promise<{ success: boolean; co
         const existing = localBysku.get(prod.sku);
 
         if (existing && existing.id) {
+          // If local copy is newer than server copy (e.g. user just edited it locally),
+          // DO NOT let the stale server copy overwrite the local edit!
+          const localUpdated = existing.updatedAt || 0;
+          const serverUpdated = prod.updatedAt || 0;
+          if (localUpdated > serverUpdated) {
+            continue; // Keep local changes!
+          }
+
           // Only update Dexie if something actually changed to prevent UI flicker
           const changed =
             existing.name !== prod.name ||
@@ -468,6 +476,11 @@ export function subscribeToSupabaseProducts(onSync?: () => void): (() => void) |
             const existing = await db.products.where('sku').equals(prod.sku).first();
 
             if (existing && existing.id) {
+              const localUpdated = existing.updatedAt || 0;
+              const serverUpdated = prod.updatedAt || 0;
+              if (localUpdated > serverUpdated) {
+                return; // Local is newer, don't overwrite!
+              }
               await db.products.update(existing.id, {
                 ...prod,
                 id: existing.id
