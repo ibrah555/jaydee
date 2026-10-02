@@ -17,3 +17,16 @@ declare module '@supabase/supabase-js' {
   export function createClient(supabaseUrl: string, supabaseKey: string, options?: any): any;
 }
 
+declare module 'jspdf' {
+  class jsPDF {
+    constructor(options?: any);
+    text(text: string, x: number, y: number, options?: any): jsPDF;
+    setFontSize(size: number): jsPDF;
+    save(filename: string): jsPDF;
+  }
+  export default jsPDF;
+}
+
+declare module 'jspdf-autotable' {
+  export default function autoTable(doc: any, options: any): void;
+}

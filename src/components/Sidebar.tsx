@@ -11,7 +11,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   UserCheck,
-  Users
+  Users,
+  Truck
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -51,6 +52,12 @@ export default function Sidebar() {
       name: 'Products',
       path: '/products',
       icon: Package,
+      allowedRoles: ['owner', 'manager', 'inventory', 'superadmin']
+    },
+    {
+      name: 'Suppliers',
+      path: '/suppliers',
+      icon: Truck,
       allowedRoles: ['owner', 'manager', 'inventory', 'superadmin']
     },
     {

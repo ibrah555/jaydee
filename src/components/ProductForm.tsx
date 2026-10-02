@@ -311,6 +311,17 @@ export default function ProductForm({ product, onClose, onSaved }: ProductFormPr
                 className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </label>
+            <label className="space-y-2 text-sm text-slate-700">
+              Low stock alert at
+              <input
+                type="number"
+                value={form.lowStockThreshold}
+                min={0}
+                onChange={(event) => handleChange('lowStockThreshold', Number(event.target.value))}
+                className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="5"
+              />
+            </label>
           </div>
 
           {form.sellingPrice > 0 && form.costPrice > 0 && (

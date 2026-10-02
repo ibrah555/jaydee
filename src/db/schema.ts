@@ -142,6 +142,17 @@ export interface ProductAttribute {
   createdAt: number;
 }
 
+export interface Supplier {
+  id?: number;
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export class JayDeeDB extends Dexie {
   products!: Table<Product, number>;
   transactions!: Table<Transaction, number>;
@@ -150,6 +161,7 @@ export class JayDeeDB extends Dexie {
   shifts!: Table<Shift, number>;
   inventoryLog!: Table<InventoryLog, number>;
   productAttributes!: Table<ProductAttribute, number>;
+  suppliers!: Table<Supplier, number>;
 
   constructor() {
     super('JayDeePOS');
@@ -163,6 +175,9 @@ export class JayDeeDB extends Dexie {
     });
     this.version(2).stores({
       productAttributes: '++id,type,name,createdAt'
+    });
+    this.version(3).stores({
+      suppliers: '++id,name,createdAt'
     });
   }
 }

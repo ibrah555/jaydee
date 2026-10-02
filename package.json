@@ -22,6 +22,8 @@
     "dexie-react-hooks": "^4.4.0",
     "firebase": "^10.7.0",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.467.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
