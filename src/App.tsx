@@ -67,7 +67,7 @@ export default function App() {
     };
 
     runAutoSync();
-    const interval = setInterval(runAutoSync, 60000); // sync every 60 seconds
+    const interval = setInterval(runAutoSync, 10000); // sync every 10 seconds
     return () => clearInterval(interval);
   }, [syncPendingTransactions]);
 
