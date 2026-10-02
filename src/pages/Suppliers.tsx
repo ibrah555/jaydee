@@ -423,6 +423,15 @@ export default function Suppliers() {
       });
 
       await db.products.bulkAdd(newProducts);
+      
+      // Force an immediate push to cloud to prevent background sync from deleting offline imports
+      try {
+        const { pushAllProductsToSupabase } = await import('../services/supabase');
+        await pushAllProductsToSupabase();
+      } catch (err) {
+        console.warn('Failed to instantly push imported products to cloud:', err);
+      }
+
       alert('Import successful! Added ' + newProducts.length + ' products.');
     } catch (e) {
       console.error(e);

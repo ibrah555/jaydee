@@ -382,7 +382,7 @@ export async function pullAttributesFromSupabase(): Promise<{ success: boolean; 
   }
 }
 
-// Complete two-way sync: PULLS FIRST to purge deletions, then PUSHES valid local items
+// Complete two-way sync: PUSHES FIRST to upload offline creations, then PULLS to purge deletions
 export async function syncCatalogWithSupabase(): Promise<{
   success: boolean;
   pushed: number;
@@ -395,17 +395,18 @@ export async function syncCatalogWithSupabase(): Promise<{
   }
 
   try {
-    // 1. Pull cloud products FIRST so deleted items are removed locally before any push
+    // 1. Push local products FIRST so offline creations are uploaded to the cloud
+    // and aren't deleted by the subsequent pull.
+    const pushRes = await pushAllProductsToSupabase();
+    
+    // 2. Pull cloud products to purge deletions made by other devices
     const pullRes = await pullProductsFromSupabase();
     if (!pullRes.success && pullRes.error) {
-      return { success: false, pushed: 0, pulled: 0, error: pullRes.error };
+      return { success: false, pushed: pushRes.count || 0, pulled: 0, error: pullRes.error };
     }
 
-    // 2. Pull cloud attributes
+    // 3. Pull cloud attributes
     await pullAttributesFromSupabase();
-
-    // 3. Push remaining local products to Supabase (will not push deleted items)
-    const pushRes = await pushAllProductsToSupabase();
 
     // 4. Push local attributes to Supabase
     await pushAllAttributesToSupabase();
