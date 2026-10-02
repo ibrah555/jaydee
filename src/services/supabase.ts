@@ -280,36 +280,56 @@ export async function pullProductsFromSupabase(): Promise<{ success: boolean; co
     const serverSkus = new Set(serverProducts.map((r: any) => r.sku));
     const deletedSkus = getDeletedSkus();
 
-    // 1. Remove any local products that no longer exist on the server or were marked deleted
-    const localProducts = await db.products.toArray();
-    for (const lp of localProducts) {
-      if (!serverSkus.has(lp.sku) || deletedSkus.has(lp.sku)) {
-        await db.products.delete(lp.id!);
-      }
-    }
-
-    // 2. Add or update products from server (skip if explicitly marked deleted locally)
     let count = 0;
-    for (const row of serverProducts) {
-      if (deletedSkus.has(row.sku)) {
-        // If this device deleted it, remove it from server as well
-        client.from('products').delete().eq('sku', row.sku).then(() => undefined);
-        continue;
+    await db.transaction('rw', db.products, async () => {
+      // 1. Remove any local products that no longer exist on the server or were marked deleted
+      const localProducts = await db.products.toArray();
+      const localBysku = new Map(localProducts.map(lp => [lp.sku, lp]));
+
+      for (const lp of localProducts) {
+        if (!serverSkus.has(lp.sku) || deletedSkus.has(lp.sku)) {
+          await db.products.delete(lp.id!);
+        }
       }
 
-      const prod = fromPostgresProduct(row);
-      const existing = await db.products.where('sku').equals(prod.sku).first();
+      // 2. Add or update products from server (skip if explicitly marked deleted locally)
+      for (const row of serverProducts) {
+        if (deletedSkus.has(row.sku)) {
+          // If this device deleted it, remove it from server as well
+          client.from('products').delete().eq('sku', row.sku).then(() => undefined);
+          continue;
+        }
 
-      if (existing && existing.id) {
-        await db.products.update(existing.id, {
-          ...prod,
-          id: existing.id
-        });
-      } else {
-        await db.products.add(prod);
+        const prod = fromPostgresProduct(row);
+        const existing = localBysku.get(prod.sku);
+
+        if (existing && existing.id) {
+          // Only update Dexie if something actually changed to prevent UI flicker
+          const changed =
+            existing.name !== prod.name ||
+            existing.costPrice !== prod.costPrice ||
+            existing.sellingPrice !== prod.sellingPrice ||
+            existing.stockQuantity !== prod.stockQuantity ||
+            existing.supplier !== prod.supplier ||
+            existing.barcode !== prod.barcode ||
+            existing.category !== prod.category ||
+            existing.brand !== prod.brand ||
+            existing.lowStockThreshold !== prod.lowStockThreshold ||
+            existing.testerQuantity !== prod.testerQuantity ||
+            existing.notes !== prod.notes ||
+            existing.imageUrl !== prod.imageUrl;
+          if (changed) {
+            await db.products.update(existing.id, {
+              ...prod,
+              id: existing.id
+            });
+          }
+        } else {
+          await db.products.add(prod);
+        }
+        count++;
       }
-      count++;
-    }
+    });
 
     return { success: true, count };
   } catch (e: any) {

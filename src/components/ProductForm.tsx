@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useProductStore } from '../stores/product';
 import { useAttributeStore } from '../stores/attribute';
-import { Product } from '../db/schema';
+import { db, Product } from '../db/schema';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Check, X } from 'lucide-react';
 
 type ProductFormProps = {
   product?: Product;
   onClose: () => void;
   onSaved: () => void;
+  initialSupplier?: string;
 };
 
-export default function ProductForm({ product, onClose, onSaved }: ProductFormProps) {
+export default function ProductForm({ product, onClose, onSaved, initialSupplier }: ProductFormProps) {
   const addProduct = useProductStore((state) => state.addProduct);
   const updateProduct = useProductStore((state) => state.updateProduct);
   const { categories, types, concerns, tags, loadAttributes, addAttribute } = useAttributeStore();
+  const suppliers = useLiveQuery(() => db.suppliers.toArray(), []) || [];
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -51,7 +54,7 @@ export default function ProductForm({ product, onClose, onSaved }: ProductFormPr
     sellingPrice: product?.sellingPrice || 0,
     stockQuantity: product?.stockQuantity || 1,
     testerQuantity: product?.testerQuantity || 0,
-    supplier: product?.supplier || '',
+    supplier: product?.supplier || initialSupplier || '',
     imageUrl: product?.imageUrl || '',
     notes: product?.notes || '',
     lowStockThreshold: product?.lowStockThreshold || 5
@@ -353,12 +356,16 @@ export default function ProductForm({ product, onClose, onSaved }: ProductFormPr
             </label>
             <label className="space-y-2 text-sm text-slate-700">
               Supplier
-              <input
+              <select
                 value={form.supplier}
                 onChange={(event) => handleChange('supplier', event.target.value)}
                 className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                placeholder="Supplier name"
-              />
+              >
+                <option value="">— Select supplier —</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
             </label>
           </div>
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
@@ -53,15 +53,20 @@ export default function App() {
       .catch(() => undefined);
   }, [pendingCount]);
 
+  const syncLock = useRef(false);
   useEffect(() => {
     // Automatic recurring background cloud sync when online
     const runAutoSync = async () => {
+      if (syncLock.current) return;          // skip if previous sync is still running
       if (navigator.onLine && isSupabaseConfigured()) {
+        syncLock.current = true;
         try {
           await syncCatalogWithSupabase();
           await syncPendingTransactions();
         } catch {
           // background sync fails gracefully if connection dropped
+        } finally {
+          syncLock.current = false;
         }
       }
     };

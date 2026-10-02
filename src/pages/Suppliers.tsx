@@ -4,11 +4,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Edit2, Trash2, Download, Package, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import ProductForm from '../components/ProductForm';
 
 export default function Suppliers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const [showProductForm, setShowProductForm] = useState(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -523,6 +525,13 @@ export default function Suppliers() {
                   </div>
                   <div className="flex gap-2">
                     <button
+                      onClick={() => setShowProductForm(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white hover:bg-primary/90 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Product
+                    </button>
+                    <button
                       onClick={downloadCSV}
                       disabled={lowStockProducts.length === 0}
                       className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -659,6 +668,15 @@ export default function Suppliers() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Add Product Form (pre-filled with selected supplier) */}
+      {showProductForm && selectedSupplier && (
+        <ProductForm
+          onClose={() => setShowProductForm(false)}
+          onSaved={() => setShowProductForm(false)}
+          initialSupplier={selectedSupplier.name}
+        />
       )}
     </div>
   );
