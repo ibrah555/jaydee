@@ -241,8 +241,11 @@ export default function Products() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="rounded-3xl bg-white p-5 text-slate-500 shadow-sm ring-1 ring-slate-200">Loading products…</div>
+        {loading && products.length === 0 ? (
+          <div className="rounded-3xl bg-white p-5 text-slate-500 shadow-sm ring-1 ring-slate-200 flex items-center justify-center gap-2">
+            <RefreshCw className="h-5 w-5 animate-spin text-slate-400" />
+            <span>Loading products…</span>
+          </div>
         ) : filteredProducts.length === 0 ? (
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <p className="text-sm text-slate-500">No products found.</p>

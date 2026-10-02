@@ -37,28 +37,29 @@ export const useProductStore = create<ProductState>((set, get) => ({
   setSearch: (value) => set({ search: value }),
   setCategory: (value) => set({ category: value }),
   loadProducts: async () => {
-    set({ loading: true, page: 0 });
+    const isInitial = get().products.length === 0;
+    if (isInitial) {
+      set({ loading: true, page: 0 });
+    }
     try {
-      // First load local IndexedDB for instant UI
+      // Load local IndexedDB for instant UI
       const products = await db.products
         .orderBy('createdAt')
         .reverse()
-        .limit(PRODUCTS_PER_PAGE)
         .toArray();
 
-      set({ products, hasMore: products.length === PRODUCTS_PER_PAGE, page: 1 });
+      set({ products, hasMore: false, page: 1, loading: false });
 
-      // If Supabase is configured, pull latest products from cloud in background
-      if (isSupabaseConfigured()) {
+      // If Supabase is configured, sync in background if empty
+      if (isSupabaseConfigured() && isInitial) {
         import('../services/supabase').then(({ pullProductsFromSupabase }) => {
           pullProductsFromSupabase().then(async (res: any) => {
             if (res.success && res.count > 0) {
               const refreshed = await db.products
                 .orderBy('createdAt')
                 .reverse()
-                .limit(PRODUCTS_PER_PAGE)
                 .toArray();
-              set({ products: refreshed, hasMore: refreshed.length === PRODUCTS_PER_PAGE });
+              set({ products: refreshed, hasMore: false });
             }
           }).catch(() => undefined);
         });
