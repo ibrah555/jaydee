@@ -5,7 +5,8 @@ import {
   deleteProductFromSupabase, 
   syncCatalogWithSupabase,
   clearDeletedSku,
-  isSupabaseConfigured 
+  isSupabaseConfigured,
+  markSkuAsRecentlyEdited
 } from '../services/supabase';
 
 const PRODUCTS_PER_PAGE = 50;
@@ -124,6 +125,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
     const updatedAt = Date.now();
     await db.products.update(id, { ...product, updatedAt });
     const updated = await db.products.get(id);
+
+    if (updated) {
+      markSkuAsRecentlyEdited(updated.sku);
+    }
 
     set((state) => ({
       products: state.products.map(p => p.id === id ? { ...p, ...product, updatedAt } : p)

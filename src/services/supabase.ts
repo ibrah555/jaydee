@@ -42,6 +42,24 @@ export function clearDeletedSku(sku: string) {
   } catch {}
 }
 
+// Guard: track recently-edited SKUs so pull/realtime never overwrites a fresh local edit
+const recentlyEditedSkus = new Map<string, number>();
+const EDIT_GUARD_MS = 15000; // 15 seconds
+
+export function markSkuAsRecentlyEdited(sku: string) {
+  recentlyEditedSkus.set(sku, Date.now());
+}
+
+function isRecentlyEdited(sku: string): boolean {
+  const ts = recentlyEditedSkus.get(sku);
+  if (!ts) return false;
+  if (Date.now() - ts > EDIT_GUARD_MS) {
+    recentlyEditedSkus.delete(sku);
+    return false;
+  }
+  return true;
+}
+
 export function getStoredSupabaseConfig(): SupabaseConfig | null {
   try {
     const raw = localStorage.getItem('jaydee_supabase_config');
@@ -308,7 +326,7 @@ export async function pullProductsFromSupabase(): Promise<{ success: boolean; co
           // DO NOT let the stale server copy overwrite the local edit!
           const localUpdated = existing.updatedAt || 0;
           const serverUpdated = prod.updatedAt || 0;
-          if (localUpdated > serverUpdated) {
+          if (localUpdated >= serverUpdated || isRecentlyEdited(prod.sku)) {
             continue; // Keep local changes!
           }
 
@@ -478,8 +496,8 @@ export function subscribeToSupabaseProducts(onSync?: () => void): (() => void) |
             if (existing && existing.id) {
               const localUpdated = existing.updatedAt || 0;
               const serverUpdated = prod.updatedAt || 0;
-              if (localUpdated > serverUpdated) {
-                return; // Local is newer, don't overwrite!
+              if (localUpdated >= serverUpdated || isRecentlyEdited(prod.sku)) {
+                return; // Local is newer or just edited, don't overwrite!
               }
               await db.products.update(existing.id, {
                 ...prod,
