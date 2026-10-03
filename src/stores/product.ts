@@ -167,7 +167,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
         error: 'Supabase cloud database is not connected. Check your settings.' 
       };
     }
-    const res = await syncCatalogWithSupabase();
+    const res = await syncCatalogWithSupabase(true);
     if (res.success) {
       await get().loadProducts();
     }

@@ -94,7 +94,7 @@ export default function App() {
       if (navigator.onLine && isSupabaseConfigured()) {
         syncLock.current = true;
         try {
-          await syncCatalogWithSupabase();
+          await syncCatalogWithSupabase(false);
           await syncPendingTransactions();
         } catch {
           // background sync fails gracefully if connection dropped

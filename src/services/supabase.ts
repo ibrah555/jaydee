@@ -428,8 +428,8 @@ export async function pullAttributesFromSupabase(): Promise<{ success: boolean; 
   }
 }
 
-// Complete two-way sync: PUSHES FIRST to upload offline creations, then PULLS to purge deletions
-export async function syncCatalogWithSupabase(): Promise<{
+// Complete two-way sync: PULLS to get latest cloud state. Optionally PUSHES first to upload offline creations.
+export async function syncCatalogWithSupabase(pushProducts: boolean = false): Promise<{
   success: boolean;
   pushed: number;
   pulled: number;
@@ -441,11 +441,15 @@ export async function syncCatalogWithSupabase(): Promise<{
   }
 
   try {
-    // 1. Push local products FIRST so offline creations are uploaded to the cloud
-    // and aren't deleted by the subsequent pull.
-    const pushRes = await pushAllProductsToSupabase();
+    let pushRes = { success: true, count: 0, error: '' };
     
-    // 2. Pull cloud products to purge deletions made by other devices
+    // 1. Push local products if requested (e.g. manual sync or startup)
+    // Avoid running this on a fast timer as it triggers realtime update events for every row
+    if (pushProducts) {
+      pushRes = await pushAllProductsToSupabase();
+    }
+    
+    // 2. Pull cloud products to purge deletions and get updates missed by realtime
     const pullRes = await pullProductsFromSupabase();
     if (!pullRes.success && pullRes.error) {
       return { success: false, pushed: pushRes.count || 0, pulled: 0, error: pullRes.error };
@@ -522,7 +526,10 @@ export function subscribeToSupabaseProducts(onSync?: () => void): (() => void) |
           }
 
           if (onSync) {
-            onSync();
+            clearTimeout((window as any).realtimeDebounceTimer);
+            (window as any).realtimeDebounceTimer = setTimeout(() => {
+              onSync();
+            }, 300);
           }
         }
       )
