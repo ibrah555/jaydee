@@ -57,7 +57,7 @@ export default function ProductForm({ product, onClose, onSaved, initialSupplier
     supplier: product?.supplier || initialSupplier || '',
     imageUrl: product?.imageUrl || '',
     notes: product?.notes || '',
-    lowStockThreshold: product?.lowStockThreshold || 5
+    lowStockThreshold: product?.lowStockThreshold ?? 0
   });
 
   // Ensure default category is selected once categories load if empty

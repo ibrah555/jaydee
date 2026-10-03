@@ -145,7 +145,7 @@ function toPostgresProduct(p: Product) {
     supplier: p.supplier || '',
     image_url: p.imageUrl || '',
     notes: p.notes || '',
-    low_stock_threshold: Number(p.lowStockThreshold) || 5,
+    low_stock_threshold: p.lowStockThreshold !== undefined && p.lowStockThreshold !== null ? Math.max(0, Number(p.lowStockThreshold)) : 0,
     updated_at: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString()
   };
 }
@@ -176,7 +176,7 @@ function fromPostgresProduct(r: any): Product {
     supplier: r.supplier || '',
     imageUrl: r.image_url || '',
     notes: r.notes || '',
-    lowStockThreshold: Number(r.low_stock_threshold) || 5,
+    lowStockThreshold: r.low_stock_threshold !== undefined && r.low_stock_threshold !== null ? Math.max(0, Number(r.low_stock_threshold)) : 0,
     createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
   };

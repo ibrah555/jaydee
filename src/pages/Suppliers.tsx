@@ -143,7 +143,11 @@ export default function Suppliers() {
 
     const updated = await db.products.get(productId);
     if (updated) {
-      pushProductToSupabase(updated).catch(() => undefined);
+      try {
+        await pushProductToSupabase(updated);
+      } catch (e) {
+        console.error('Failed to sync reorder target to cloud:', e);
+      }
     }
   };
 
@@ -545,9 +549,11 @@ export default function Suppliers() {
                                 <input
                                   type="number"
                                   min="0"
-                                  value={orderTarget === 0 ? '' : orderTarget}
-                                  placeholder="0"
-                                  onChange={(e) => handleReorderTargetChange(p.id!, parseInt(e.target.value) || 0)}
+                                  value={orderTarget}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    handleReorderTargetChange(p.id!, v === '' ? 0 : Math.max(0, parseInt(v) || 0));
+                                  }}
                                   className="w-20 px-2.5 py-1.5 border border-slate-200 bg-white focus:bg-white rounded-lg text-center font-bold text-slate-800 text-xs focus:ring-2 focus:ring-primary focus:border-primary outline-none transition"
                                   title="Type the quantity you want to reorder (0 = do not order)"
                                 />
