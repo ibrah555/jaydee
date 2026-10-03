@@ -441,7 +441,7 @@ export async function syncCatalogWithSupabase(pushProducts: boolean = false): Pr
   }
 
   try {
-    let pushRes = { success: true, count: 0, error: '' };
+    let pushRes: { success: boolean; count: number; error?: string } = { success: true, count: 0 };
     
     // 1. Push local products if requested (e.g. manual sync or startup)
     // Avoid running this on a fast timer as it triggers realtime update events for every row
