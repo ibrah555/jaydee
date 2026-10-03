@@ -22,7 +22,9 @@ declare module 'jspdf' {
     constructor(options?: any);
     text(text: string, x: number, y: number, options?: any): jsPDF;
     setFontSize(size: number): jsPDF;
+    setTextColor(ch1: number | string, ch2?: number, ch3?: number): jsPDF;
     save(filename: string): jsPDF;
+    [key: string]: any;
   }
   export default jsPDF;
 }
