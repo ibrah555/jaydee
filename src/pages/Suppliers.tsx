@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { db, Supplier, Product } from '../db/schema';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { 
@@ -46,6 +46,45 @@ export default function Suppliers() {
 
   const suppliers = useLiveQuery(() => db.suppliers.toArray(), []) || [];
   const products = useLiveQuery(() => db.products.toArray(), []) || [];
+
+  // Auto-create supplier entries from product data so every device sees them
+  useEffect(() => {
+    if (products.length === 0) return;
+
+    const autoPopulate = async () => {
+      const existingSuppliers = await db.suppliers.toArray();
+      const existingNames = new Set(existingSuppliers.map(s => s.name.toLowerCase()));
+
+      // Collect unique supplier names from products
+      const supplierNames = new Set<string>();
+      for (const p of products) {
+        if (p.supplier && p.supplier.trim() && !existingNames.has(p.supplier.trim().toLowerCase())) {
+          supplierNames.add(p.supplier.trim());
+        }
+      }
+
+      if (supplierNames.size === 0) return;
+
+      const now = Date.now();
+      for (const sName of supplierNames) {
+        try {
+          await db.suppliers.add({
+            name: sName,
+            contactName: '',
+            phone: '',
+            email: '',
+            address: '',
+            createdAt: now,
+            updatedAt: now
+          });
+        } catch {
+          // ignore duplicate name errors
+        }
+      }
+    };
+
+    autoPopulate();
+  }, [products.length]);
 
   const handleOpenModal = (supplier?: Supplier) => {
     if (supplier) {

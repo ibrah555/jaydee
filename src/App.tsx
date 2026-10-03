@@ -16,6 +16,7 @@ import { useAuthStore } from './stores/auth';
 import SyncBanner from './components/SyncBanner';
 import { useTransactionStore } from './stores/transaction';
 import { syncCatalogWithSupabase, isSupabaseConfigured } from './services/supabase';
+import { useProductStore } from './stores/product';
 import { db } from './db/schema';
 
 export default function App() {
@@ -94,7 +95,10 @@ export default function App() {
       if (navigator.onLine && isSupabaseConfigured()) {
         syncLock.current = true;
         try {
-          await syncCatalogWithSupabase(false);
+          const res = await syncCatalogWithSupabase(false);
+          if (res.success && res.pulled > 0) {
+            useProductStore.getState().loadProducts();
+          }
           await syncPendingTransactions();
         } catch {
           // background sync fails gracefully if connection dropped
