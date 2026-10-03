@@ -16,10 +16,43 @@ import { useAuthStore } from './stores/auth';
 import SyncBanner from './components/SyncBanner';
 import { useTransactionStore } from './stores/transaction';
 import { syncCatalogWithSupabase, isSupabaseConfigured } from './services/supabase';
+import { db } from './db/schema';
 
 export default function App() {
   const { user, signOut } = useAuthStore();
   const { pendingCount, syncPendingTransactions, loadTransactions } = useTransactionStore();
+
+  useEffect(() => {
+    // Migration: reset legacy default reorder target of 5 to 0 so all items start at 0
+    const resetInitialTargetsToZero = async () => {
+      const alreadyDone = localStorage.getItem('jaydee_migrated_reorder_targets_to_zero_v1');
+      if (alreadyDone) return;
+
+      try {
+        const prods = await db.products.toArray();
+        const targetsToReset = prods.filter(p => !p.lowStockThreshold || p.lowStockThreshold === 5);
+        if (targetsToReset.length > 0) {
+          await db.transaction('rw', db.products, async () => {
+            for (const p of targetsToReset) {
+              await db.products.update(p.id!, {
+                lowStockThreshold: 0,
+                updatedAt: Date.now()
+              });
+            }
+          });
+          if (isSupabaseConfigured()) {
+            const { pushAllProductsToSupabase } = await import('./services/supabase');
+            await pushAllProductsToSupabase();
+          }
+        }
+        localStorage.setItem('jaydee_migrated_reorder_targets_to_zero_v1', 'true');
+      } catch (err) {
+        console.warn('Reorder target migration note:', err);
+      }
+    };
+
+    resetInitialTargetsToZero();
+  }, []);
 
 
 

@@ -13,7 +13,8 @@ import {
   CheckCircle2, 
   RefreshCw,
   Search,
-  ShoppingCart
+  ShoppingCart,
+  RotateCcw
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -148,6 +149,27 @@ export default function Suppliers() {
       } catch (e) {
         console.error('Failed to sync reorder target to cloud:', e);
       }
+    }
+  };
+
+  const handleResetAllSupplierTargets = async () => {
+    if (!selectedSupplier || supplierProducts.length === 0) return;
+    if (!confirm(`Reset reorder target to 0 for all ${supplierProducts.length} product(s) under ${selectedSupplier.name}?`)) return;
+
+    await db.transaction('rw', db.products, async () => {
+      for (const p of supplierProducts) {
+        await db.products.update(p.id!, {
+          lowStockThreshold: 0,
+          updatedAt: Date.now()
+        });
+      }
+    });
+
+    try {
+      const { pushAllProductsToSupabase } = await import('../services/supabase');
+      await pushAllProductsToSupabase();
+    } catch (err) {
+      console.warn('Sync note:', err);
     }
   };
 
@@ -436,6 +458,16 @@ export default function Suppliers() {
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add Product
+                    </button>
+
+                    <button
+                      onClick={handleResetAllSupplierTargets}
+                      disabled={supplierProducts.length === 0}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 rounded-xl text-xs font-semibold transition disabled:opacity-40"
+                      title="Reset all product targets for this supplier to 0"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                      Reset All to 0
                     </button>
                     
                     <button
